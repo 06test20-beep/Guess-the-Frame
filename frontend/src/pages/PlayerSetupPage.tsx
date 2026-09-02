@@ -7,11 +7,14 @@ import { useSound } from '../hooks/useSound';
 import { Dices } from 'lucide-react';
 
 const MOVIE_CHARACTER_NAMES = [
-  "Neo", "Trinity", "Frodo", "Gandalf", "Vito", "Rocky", "Leia", "Luke", 
-  "Han", "Ripley", "Indiana", "Gollum", "Max", "Furiosa", "Marty", "Doc", 
-  "Joker", "Batman", "Simba", "Woody", "Buzz", "Shrek", "Fiona", "Jack", 
-  "Rose", "Yoda", "Groot", "Thor", "Loki", "Stark", "Bond", "Bourne", "Wick",
-  "Morpheus", "Gatsby", "Ferris", "Mclovin", "Thanos", "Gollum"
+  "Couch Potato", "Spoiler Alert", "Plot Twist", "Stunt Double", 
+  "The Director", "Extra #4", "CGI Monster", "Oscar Snub", 
+  "Binge Watcher", "Popcorn Addict", "Bollywood Hero", "The Villain", 
+  "Rom-Com Lead", "Red Shirt", "Method Actor", "Cinephile",
+  "Box Office Flop", "Sequel Bait", "Director's Cut", "Stan", 
+  "Fanboy", "Fangirl", "Main Character", "Comic Relief",
+  "The Chosen One", "Secret Agent", "Final Girl", "Jump Scare",
+  "Meme Lord", "Simp-man", "The Intern", "Overpaid Star"
 ];
 
 function getRandomMovieNames(count: number): string[] {
