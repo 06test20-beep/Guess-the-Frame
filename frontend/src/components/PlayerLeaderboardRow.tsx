@@ -50,7 +50,7 @@ export default function PlayerLeaderboardRow({ player, rank, isJudge, onMinus, o
           role="img"
           aria-label={avatar?.label}
         >
-          {avatar?.emoji}
+          <img src={avatar?.imagePath} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
         </div>
       )}
 

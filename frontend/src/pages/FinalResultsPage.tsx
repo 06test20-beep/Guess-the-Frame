@@ -75,7 +75,7 @@ export default function FinalResultsPage() {
         {/* 2nd */}
         {p2 ? (
           <div className="podium-player">
-            <div className="podium-avatar" style={{ background: p2Av?.bgGradient }}>{p2Av?.emoji}</div>
+            <div className="podium-avatar" style={{ background: p2Av?.bgGradient }}><img src={p2Av?.imagePath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} /></div>
             <div className="podium-name">{p2.name}</div>
             <div className="podium-pts podium-pts--2"><TallyScore targetScore={p2.score} /> pts</div>
             <div className="podium-block podium-block--2">2</div>
@@ -90,7 +90,7 @@ export default function FinalResultsPage() {
               background: winnerAvatar?.bgGradient,
               width: 80, height: 80, fontSize: '2.4rem',
               border: '4px solid #F4A535',
-            }}>{winnerAvatar?.emoji}</div>
+            }}><img src={winnerAvatar?.imagePath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} /></div>
             <div className="podium-name" style={{ fontWeight:900 }}>{winner.name}</div>
             <div className="podium-pts podium-pts--1" style={{ fontSize:'1.1rem' }}><TallyScore targetScore={winner.score} /> pts</div>
             <div className="podium-block podium-block--1">1</div>
@@ -100,7 +100,7 @@ export default function FinalResultsPage() {
         {/* 3rd */}
         {p3 ? (
           <div className="podium-player">
-            <div className="podium-avatar" style={{ background: p3Av?.bgGradient }}>{p3Av?.emoji}</div>
+            <div className="podium-avatar" style={{ background: p3Av?.bgGradient }}><img src={p3Av?.imagePath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} /></div>
             <div className="podium-name">{p3.name}</div>
             <div className="podium-pts podium-pts--3"><TallyScore targetScore={p3.score} /> pts</div>
             <div className="podium-block podium-block--3">3</div>
@@ -131,7 +131,7 @@ export default function FinalResultsPage() {
                   {p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank}
                 </span>
                 <div className="standings-row__avatar" style={{ background: av?.bgGradient }}>
-                  {av?.emoji}
+                  <img src={av?.imagePath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
                 </div>
                 <span className="standings-row__name">{p.name}</span>
                 <span className="standings-row__score">{p.score}</span>

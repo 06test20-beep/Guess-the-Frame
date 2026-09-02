@@ -110,7 +110,7 @@ function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestions
               disabled={pointsApplied}
             >
               <span className="scoring-player-btn__num">{i + 1}</span>
-              {/* Photo or emoji */}
+              {/* Photo or Avatar */ }
               {p.photoData ? (
                 <img
                   src={p.photoData}
@@ -122,7 +122,7 @@ function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestions
                   className="scoring-player-btn__avatar"
                   style={{ background: av?.bgGradient }}
                 >
-                  {av?.emoji}
+                  <img src={av?.imagePath} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
                 </div>
               )}
               <span className="scoring-player-btn__name">{p.name}</span>

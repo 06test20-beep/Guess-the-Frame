@@ -1,7 +1,7 @@
 // ─── Player ────────────────────────────────────────────────────────────────
 export interface Avatar {
   id: number;
-  emoji: string;
+  imagePath: string;
   bgGradient: string;
   label: string;
 }
@@ -81,6 +81,7 @@ export interface GameStore {
   startLevel: () => void;
   selectJudge: () => void;
   startRound: () => void;
+  enterGameplay: () => void;
   revealImage: () => void;
   tickTimer: () => void;
   revealAnswer: () => void;

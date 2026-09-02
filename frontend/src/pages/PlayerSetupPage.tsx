@@ -117,7 +117,7 @@ function PlayerPhotoSlot({
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          av?.emoji
+          <img src={av?.imagePath} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
         )}
       </div>
 
@@ -147,7 +147,7 @@ function PlayerPhotoSlot({
               onClick={() => { onAvatarChange(a.id); onPhotoChange(undefined); }}
               title={a.label}
             >
-              {a.emoji}
+              <img src={a.imagePath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
             </button>
           ))}
           {/* Clear photo button (shown only when a photo is set) */}

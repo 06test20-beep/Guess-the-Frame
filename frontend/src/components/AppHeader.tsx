@@ -40,7 +40,7 @@ export default function AppHeader() {
             className="app-header__judge-avatar"
             style={{ background: judgeAvatar?.bgGradient }}
           >
-            {judgeAvatar?.emoji}
+            <img src={judgeAvatar?.imagePath} alt="Judge" style={{ width: '100%', height: '100%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
           </div>
           <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Gavel size={16} /> {judge.name}</span>
           <span style={{ opacity: 0.5, fontSize: '0.7rem' }}>JUDGE</span>

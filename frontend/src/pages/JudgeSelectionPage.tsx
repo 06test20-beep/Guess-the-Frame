@@ -93,7 +93,7 @@ export default function JudgeSelectionPage() {
             }}
           >
             <div className="judge-avatar-inner">
-              <span style={{ fontSize: '3.2rem' }}>{displayedAvatar?.emoji}</span>
+              <img src={displayedAvatar?.imagePath} alt="Avatar" style={{ width: '80%', height: '80%', objectFit: 'cover', mixBlendMode: 'multiply' }} />
               <span className="judge-avatar-inner__name">{displayedPlayer.name}</span>
             </div>
           </motion.div>

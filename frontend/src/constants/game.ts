@@ -52,12 +52,12 @@ export const LEVELS: Record<number, LevelMeta> = {
 
 // ─── Avatars ─────────────────────────────────────────────────────────────────
 export const AVATARS: Avatar[] = [
-  { id: 1,  emoji: '🧑‍🦱', bgGradient: 'linear-gradient(135deg,#c084fc,#818cf8)', label: 'Curly'    },
-  { id: 2,  emoji: '👨‍🦰', bgGradient: 'linear-gradient(135deg,#f472b6,#ec4899)', label: 'Ginger'   },
-  { id: 3,  emoji: '👩‍🦱', bgGradient: 'linear-gradient(135deg,#fb923c,#f97316)', label: 'Curls'    },
-  { id: 4,  emoji: '🧔',   bgGradient: 'linear-gradient(135deg,#34d399,#10b981)', label: 'Beard'    },
-  { id: 5,  emoji: '👨‍🦳', bgGradient: 'linear-gradient(135deg,#60a5fa,#3b82f6)', label: 'Silver'   },
-  { id: 6,  emoji: '👦',   bgGradient: 'linear-gradient(135deg,#fbbf24,#f59e0b)', label: 'Kid'      },
-  { id: 7,  emoji: '👩‍🦰', bgGradient: 'linear-gradient(135deg,#f43f5e,#e11d48)', label: 'Fiery'    },
-  { id: 8,  emoji: '🧑‍🦲', bgGradient: 'linear-gradient(135deg,#a78bfa,#7c3aed)', label: 'Bold'     },
+  { id: 1,  imagePath: '/assets/avatars/popcorn.jpg',      bgGradient: 'linear-gradient(135deg,#c084fc,#818cf8)', label: 'Popcorn'    },
+  { id: 2,  imagePath: '/assets/avatars/clapperboard.jpg', bgGradient: 'linear-gradient(135deg,#f472b6,#ec4899)', label: 'Clapper'    },
+  { id: 3,  imagePath: '/assets/avatars/ticket.jpg',       bgGradient: 'linear-gradient(135deg,#fb923c,#f97316)', label: 'Ticket'     },
+  { id: 4,  imagePath: '/assets/avatars/trophy.jpg',       bgGradient: 'linear-gradient(135deg,#34d399,#10b981)', label: 'Trophy'     },
+  { id: 5,  imagePath: '/assets/avatars/megaphone.jpg',    bgGradient: 'linear-gradient(135deg,#60a5fa,#3b82f6)', label: 'Megaphone'  },
+  { id: 6,  imagePath: '/assets/avatars/glasses.jpg',      bgGradient: 'linear-gradient(135deg,#fbbf24,#f59e0b)', label: '3D Glasses' },
+  { id: 7,  imagePath: '/assets/avatars/filmreel.jpg',     bgGradient: 'linear-gradient(135deg,#f43f5e,#e11d48)', label: 'Film Reel'  },
+  { id: 8,  imagePath: '/assets/avatars/star.jpg',         bgGradient: 'linear-gradient(135deg,#a78bfa,#7c3aed)', label: 'Star'       },
 ];
