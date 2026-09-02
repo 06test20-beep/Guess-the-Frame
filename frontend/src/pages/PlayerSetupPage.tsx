@@ -4,6 +4,20 @@ import { AVATARS, MIN_PLAYERS, MAX_PLAYERS } from '../constants/game';
 import type { Player } from '../types';
 import SoundToggle from '../components/SoundToggle';
 import { useSound } from '../hooks/useSound';
+import { Dices } from 'lucide-react';
+
+const MOVIE_CHARACTER_NAMES = [
+  "Neo", "Trinity", "Frodo", "Gandalf", "Vito", "Rocky", "Leia", "Luke", 
+  "Han", "Ripley", "Indiana", "Gollum", "Max", "Furiosa", "Marty", "Doc", 
+  "Joker", "Batman", "Simba", "Woody", "Buzz", "Shrek", "Fiona", "Jack", 
+  "Rose", "Yoda", "Groot", "Thor", "Loki", "Stark", "Bond", "Bourne", "Wick",
+  "Morpheus", "Gatsby", "Ferris", "Mclovin", "Thanos", "Gollum"
+];
+
+function getRandomMovieNames(count: number): string[] {
+  const shuffled = [...MOVIE_CHARACTER_NAMES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
 
 /* ── Step 1: select player count ─────────────────────────────────────────── */
 function StepCount() {
@@ -158,7 +172,7 @@ function StepSetup() {
   const { playerCount, setPlayers, setPhase } = useGameStore();
   const { playNavClick, playStartGame } = useSound();
 
-  const [names,   setNames]   = useState<string[]>(Array(playerCount).fill(''));
+  const [names,   setNames]   = useState<string[]>(() => getRandomMovieNames(playerCount));
   const [avatars, setAvatars] = useState<number[]>(
     Array.from({ length: playerCount }, (_, i) => AVATARS[i % AVATARS.length].id)
   );
@@ -209,16 +223,41 @@ function StepSetup() {
             <div key={i} className="player-input-item">
               <span className="player-input-item__num">Player {i + 1}</span>
 
-              {/* Name input */}
-              <input
-                id={`player-name-${i + 1}`}
-                className="player-input-item__field"
-                type="text"
-                placeholder="Enter name…"
-                value={names[i]}
-                maxLength={12}
-                onChange={e => updateName(i, e.target.value)}
-              />
+              {/* Name input with auto-generate button */}
+              <div style={{ position: 'relative', width: '100%' }}>
+                <input
+                  id={`player-name-${i + 1}`}
+                  className="player-input-item__field"
+                  type="text"
+                  placeholder="Enter name…"
+                  value={names[i]}
+                  maxLength={12}
+                  onChange={e => updateName(i, e.target.value)}
+                  style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    playNavClick();
+                    let newName = getRandomMovieNames(1)[0];
+                    // ensure we don't pick a name already used by another player
+                    let attempts = 0;
+                    while (names.includes(newName) && attempts < 10) {
+                      newName = getRandomMovieNames(1)[0];
+                      attempts++;
+                    }
+                    updateName(i, newName);
+                  }}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)',
+                    opacity: 0.7, padding: 0, display: 'flex', alignItems: 'center'
+                  }}
+                  title="Generate random movie name"
+                >
+                  <Dices size={20} />
+                </button>
+              </div>
 
               {/* Photo / avatar slot */}
               <PlayerPhotoSlot
