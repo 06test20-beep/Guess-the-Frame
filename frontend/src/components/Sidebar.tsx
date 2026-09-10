@@ -6,11 +6,13 @@ import PlayerLeaderboardRow from './PlayerLeaderboardRow';
 import { CORRECT_POINTS, WRONG_POINTS } from '../constants/game';
 import { useSound } from '../hooks/useSound';
 
+import { getQuestionsForLevel } from '../utils/questionStorage';
+
 export default function Sidebar() {
   const {
     players, currentJudgeId, timeRemaining, timerRunning,
     revealAnswer, goToScoring, nextRound, skipRound, skipLevel, adjustScore, answerRevealed, phase,
-    currentRound
+    currentRound, currentLevel
   } = useGameStore();
   const { playNavClick } = useSound();
 
@@ -27,14 +29,15 @@ export default function Sidebar() {
   });
 
   const timerDone = !timerRunning && timeRemaining === 0 && !answerRevealed;
-  const progressPercent = ((currentRound - 1) / 10) * 100;
+  const levelQuestions = getQuestionsForLevel(currentLevel);
+  const progressPercent = ((currentRound - 1) / levelQuestions.length) * 100;
 
   return (
     <aside className="sidebar">
       {/* Progress Bar */}
       <div style={{ padding: '0 12px', marginTop: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '6px' }}>
-          <span>Round {currentRound} of 10</span>
+          <span>Round {currentRound} of {levelQuestions.length}</span>
         </div>
         <div style={{ height: '6px', background: 'rgba(0,0,0,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${progressPercent}%`, background: 'var(--purple)', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }} />

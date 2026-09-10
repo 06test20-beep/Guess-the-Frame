@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Loader2, RefreshCw, Eye, Film, Check, RotateCcw, Save, Plus, AlertTriangle, Settings, Upload, Download, ArrowLeft, Camera, X } from 'lucide-react';
+import { Trash2, Loader2, Eye, Film, Check, RotateCcw, Save, Plus, AlertTriangle, Settings, Upload, Download, ArrowLeft, Camera, X } from 'lucide-react';
 import useGameStore from '../store/gameStore';
 import { LEVELS } from '../constants/game';
 import type { LevelId, QuestionType } from '../types';
 import {
   loadStoredLevel,
   saveLevel,
-  clearLevel,
   exportAllAsJSON,
   importFromJSON,
   getDefaultStoredQuestions,
@@ -19,7 +18,14 @@ import {
 //  Admin Panel — Question Content Manager
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LEVEL_IDS: LevelId[] = [1, 2, 3, 4];
+const LEVEL_IDS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+// Default question type per level
+function defaultTypeForLevel(levelId: LevelId): QuestionType {
+  if (levelId === 4) return 'eye';
+  if (levelId === 5 || levelId === 7 || levelId === 8) return 'dialogue';
+  return 'frame';
+}
 
 function makeNewQuestion(level: LevelId, num: number, type: QuestionType): StoredQuestion {
   return {
@@ -40,10 +46,14 @@ function QuestionCard({
   onChange: (updated: StoredQuestion) => void;
   onDelete: () => void;
 }) {
-  const fileRef  = useRef<HTMLInputElement>(null);
-  const [dragging,     setDragging]     = useState(false);
-  const [compressing,  setCompressing]  = useState(false);
+  const fileRef     = useRef<HTMLInputElement>(null);
+  const fullFileRef = useRef<HTMLInputElement>(null);
+  const [dragging,        setDragging]        = useState(false);
+  const [compressing,     setCompressing]     = useState(false);
+  const [draggingFull,    setDraggingFull]    = useState(false);
+  const [compressingFull, setCompressingFull] = useState(false);
 
+  // ── Crop image handler ──────────────────────────────────────────────────
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     setCompressing(true);
@@ -65,14 +75,45 @@ function QuestionCard({
     if (file) handleImageFile(file);
   };
 
+  // ── Full image handler (eye questions only) ─────────────────────────────
+  const handleFullImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setCompressingFull(true);
+    try {
+      const base64 = await compressImage(file, 1280, 0.72);
+      onChange({ ...q, fullImageData: base64 });
+    } catch (e) {
+      console.error('Full image compression failed:', e);
+      alert('Could not process that image. Try a different file.');
+    } finally {
+      setCompressingFull(false);
+    }
+  };
+
+  const handleDropFull = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggingFull(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFullImageFile(file);
+  };
+
   const imagePreview = q.imageData ?? q.imagePath;
 
   return (
     <div className="admin-q-card">
       {/* Header */}
       <div className="admin-q-card__header">
-        <span className="admin-q-card__num">Q{String(index + 1).padStart(2, '0')}</span>
-        <span className="admin-q-card__type">{q.type}</span>
+        <span className="admin-q-card__num">Q{String(index + 1).padStart(2, '00')}</span>
+        <button
+          className="admin-q-card__type"
+          title="Click to change question type"
+          style={{ cursor: 'pointer', border: '1px solid var(--border-soft)', borderRadius: '8px', padding: '2px 10px', background: 'rgba(155,89,182,0.08)', fontWeight: 700, fontSize: '0.75rem' }}
+          onClick={() => {
+            const types: QuestionType[] = ['frame', 'eye', 'dialogue'];
+            const next = types[(types.indexOf(q.type) + 1) % types.length];
+            onChange({ ...q, type: next });
+          }}
+        >{q.type} ↻</button>
         <button
           className="admin-q-card__delete"
           onClick={onDelete}
@@ -82,9 +123,14 @@ function QuestionCard({
         ><X size={16} /></button>
       </div>
 
-      {/* Image upload zone (frame / eye levels only) */}
+      {/* ── Eye crop image upload zone ───────────────────────────────────── */}
       {(q.type === 'frame' || q.type === 'eye') && (
         <>
+          {q.type === 'eye' && (
+            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
+              👁 Eye Crop Image (shown during question)
+            </div>
+          )}
           <div
             className={`admin-img-drop ${dragging ? 'admin-img-drop--over' : ''}`}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -119,7 +165,7 @@ function QuestionCard({
                 <div style={{ color: 'var(--primary)', opacity: 0.8 }}>
                   {q.type === 'eye' ? <Eye size={48} strokeWidth={1.5} /> : <Film size={48} strokeWidth={1.5} />}
                 </div>
-                <span>Click or drag & drop image here</span>
+                <span>Click or drag &amp; drop image here</span>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   JPG · PNG · WEBP — auto-compressed
                 </span>
@@ -133,8 +179,6 @@ function QuestionCard({
               onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
             />
           </div>
-
-          {/* Remove image */}
           {q.imageData && (
             <button
               className="admin-clear-img-btn"
@@ -147,7 +191,71 @@ function QuestionCard({
         </>
       )}
 
-      {/* Dialogue text (Level 4) */}
+      {/* ── Full image upload zone (eye questions ONLY) ─────────────────── */}
+      {q.type === 'eye' && (
+        <>
+          <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#b06fe0', marginTop: 12, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
+            🖼 Full Image (shown after reveal)
+          </div>
+          <div
+            className={`admin-img-drop ${draggingFull ? 'admin-img-drop--over' : ''}`}
+            style={{ borderColor: q.fullImageData ? '#b06fe0' : undefined, minHeight: 100 }}
+            onDragOver={e => { e.preventDefault(); setDraggingFull(true); }}
+            onDragLeave={() => setDraggingFull(false)}
+            onDrop={handleDropFull}
+            onClick={() => !compressingFull && fullFileRef.current?.click()}
+            role="button"
+            aria-label="Upload full reveal image"
+            tabIndex={0}
+            onKeyDown={e => e.key === 'Enter' && fullFileRef.current?.click()}
+          >
+            {compressingFull ? (
+              <div className="admin-img-empty">
+                <Loader2 className="animate-spin" size={32} style={{ color: '#b06fe0' }} />
+                <span>Compressing full image…</span>
+              </div>
+            ) : q.fullImageData ? (
+              <div className="admin-img-preview-wrap">
+                <img
+                  src={q.fullImageData}
+                  alt="full reveal preview"
+                  className="admin-img-preview"
+                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.25'; }}
+                />
+                <div className="admin-img-preview-overlay">🔄 Click / Drop to replace</div>
+              </div>
+            ) : (
+              <div className="admin-img-empty">
+                <div style={{ color: '#b06fe0', opacity: 0.8 }}>
+                  <Eye size={40} strokeWidth={1.5} />
+                </div>
+                <span style={{ color: 'var(--text-muted)' }}>Full face image (optional)</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Shown when answer is revealed · JPG · PNG · WEBP
+                </span>
+              </div>
+            )}
+            <input
+              ref={fullFileRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFullImageFile(f); }}
+            />
+          </div>
+          {q.fullImageData && (
+            <button
+              className="admin-clear-img-btn"
+              onClick={() => onChange({ ...q, fullImageData: undefined })}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Trash2 size={16} /> Remove full reveal image
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Dialogue text */}
       {q.type === 'dialogue' && (
         <div className="admin-field-group">
           <label className="admin-label">Dialogue / Quote</label>
@@ -208,16 +316,16 @@ function QuestionCard({
 }
 
 /* ── Level panel ─────────────────────────────────────────────────────────── */
-function LevelPanel({ levelId }: { levelId: LevelId }) {
+function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => void }) {
   const level = LEVELS[levelId];
   const [questions,  setQuestions]  = useState<StoredQuestion[]>([]);
   const [dirty,      setDirty]      = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  // Load on mount / level switch
   useEffect(() => {
     const stored = loadStoredLevel(levelId);
-    setQuestions(stored ?? getDefaultStoredQuestions(levelId));
+    const defaultType = defaultTypeForLevel(levelId);
+    setQuestions(stored ?? (defaultType === 'dialogue' ? getDefaultStoredQuestions(levelId) : []));
     setDirty(false);
     setSaveStatus('idle');
   }, [levelId]);
@@ -237,8 +345,7 @@ function LevelPanel({ levelId }: { levelId: LevelId }) {
   };
 
   const addQuestion = () => {
-    const defaultType: QuestionType =
-      levelId === 4 ? 'dialogue' : levelId === 3 ? 'eye' : 'frame';
+    const defaultType = defaultTypeForLevel(levelId);
     setQuestions(prev => [...prev, makeNewQuestion(levelId, prev.length + 1, defaultType)]);
     markDirty();
   };
@@ -249,25 +356,19 @@ function LevelPanel({ levelId }: { levelId: LevelId }) {
     setQuestions(renumbered);
     setDirty(false);
     setSaveStatus('saved');
+    onUpdate();
     setTimeout(() => setSaveStatus('idle'), 3000);
   };
 
   const handleReset = () => {
     if (!confirm(
-      `Reset Level ${levelId} to defaults?\n\n` +
-      'This will remove all custom images and answers for this level only.\n' +
-      'Other levels and game scores are not affected.'
+      `Clear Level ${levelId}?\n\n` +
+      'This will remove all questions from the editor for this level so you can start fresh.'
     )) return;
-    clearLevel(levelId);
-    setQuestions(getDefaultStoredQuestions(levelId));
-    setDirty(false);
+    setQuestions([]);
+    setDirty(true);
     setSaveStatus('idle');
   };
-
-  const saveBtnLabel =
-    saveStatus === 'saved' ? '✓ Saved!' :
-    dirty                  ? '💾 Save Level' :
-                             '✓ Up to date';
 
   return (
     <div>
@@ -296,7 +397,7 @@ function LevelPanel({ levelId }: { levelId: LevelId }) {
             id={`admin-reset-level-${levelId}`}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <RotateCcw size={16} /> Reset Level
+            <RotateCcw size={16} /> Clear Level
           </button>
           <button
             className="btn-primary"
@@ -354,7 +455,6 @@ export default function AdminPage() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
-  // Refresh tab dots after import
   const [importTick, setImportTick] = useState(0);
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,12 +467,6 @@ export default function AdminPage() {
       if (result.ok) {
         setImportStatus(`✓ Imported Levels: ${result.levels.join(', ')}`);
         setImportTick(t => t + 1);
-        // Reload current level panel
-        setActiveLevel(prev => {
-          // briefly switch away and back to force re-mount
-          return prev;
-        });
-        // Force re-render of the panel
         setActiveLevel(0 as LevelId);
         setTimeout(() => setActiveLevel(result.levels[0] ?? 1), 50);
       } else {
@@ -381,7 +475,6 @@ export default function AdminPage() {
       setTimeout(() => setImportStatus(null), 5000);
     };
     reader.readAsText(file);
-    // Reset so same file can be re-imported if needed
     e.target.value = '';
   };
 
@@ -390,7 +483,7 @@ export default function AdminPage() {
       {/* Top bar */}
       <header className="admin-topbar">
         <div className="app-header__logo" style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-          <span>Guess</span><span> the Frame</span>
+          <span>Guess</span><span>the Frame</span>
           <span className="admin-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Settings size={14} /> Admin</span>
         </div>
 
@@ -461,6 +554,7 @@ export default function AdminPage() {
             <strong>How it works:</strong> Upload images by clicking or dragging them onto a question card.
             Images are auto-compressed before saving. Fill in the answer and click <strong>Save Level</strong>.
             Changes are stored in your browser and used immediately — no file editing needed.
+            For <strong>Guess The Eyes</strong>, upload the eye crop <em>and</em> the full face image for a dual reveal.
             Use <strong>Export JSON</strong> to create a backup and <strong>Import JSON</strong> to restore it.
             <br />
             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -491,7 +585,7 @@ export default function AdminPage() {
 
         {/* Active level panel */}
         <div className="admin-panel-wrap">
-          {activeLevel > 0 && <LevelPanel key={`${activeLevel}-${importTick}`} levelId={activeLevel} />}
+          {activeLevel > 0 && <LevelPanel key={`${activeLevel}-${importTick}`} levelId={activeLevel} onUpdate={() => setImportTick(t => t + 1)} />}
         </div>
       </div>
     </div>

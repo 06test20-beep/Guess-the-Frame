@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
 import useGameStore from '../store/gameStore';
 import { LEVELS } from '../constants/game';
+import { getQuestionsForLevel } from '../utils/questionStorage';
 import SoundToggle from '../components/SoundToggle';
 
 export default function LevelIntroPage() {
-  const { currentLevel, selectJudge, setPhase } = useGameStore();
+  const { currentLevel, selectJudge, setPhase, selectedGames, currentSelectedGameIndex } = useGameStore();
   const level = LEVELS[currentLevel];
-
-  // Dot progress indicator
-  const dots = [1, 2, 3, 4];
+  const levelQuestions = getQuestionsForLevel(currentLevel);
 
   return (
     <div className="page-full">
@@ -27,20 +26,20 @@ export default function LevelIntroPage() {
 
         {/* Round badge */}
         <div className="level-intro-rounds">
-          <span>{level.rounds}</span> ROUNDS
+          <span>{levelQuestions.length}</span> ROUNDS
         </div>
 
         <div className="level-intro-label">GET READY</div>
 
         {/* Level progress dots */}
         <div className="level-intro-dots">
-          {dots.map(d => (
+          {selectedGames.map((gameId, i) => (
             <div
-              key={d}
+              key={`${gameId}-${i}`}
               className={[
                 'level-dot',
-                d === currentLevel ? 'level-dot--active' : '',
-                d < currentLevel  ? 'level-dot--done'   : '',
+                i === currentSelectedGameIndex ? 'level-dot--active' : '',
+                i < currentSelectedGameIndex  ? 'level-dot--done'   : '',
               ].join(' ')}
             />
           ))}

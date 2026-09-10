@@ -18,15 +18,18 @@ function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsFo
   useEffect(() => { playReveal(); }, []);
 
   if (question.type === 'eye') {
+    // Prefer the full-face image; fall back to the crop if none provided
+    const revealImg = question.fullImagePath ?? question.imagePath;
     return (
-      <div className="answer-overlay">
+      <div className="answer-overlay" key={question.id}>
         <div className="eye-reveal-wrap">
-          {question.imagePath && (
+          {revealImg && (
             <img
-              src={question.imagePath}
+              src={revealImg}
               alt="Full reveal"
               className="eye-reveal-photo"
-              onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+              style={{ transition: 'opacity 0.5s ease-out' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           )}
           <div className="answer-card anim-3d-flip" style={{ borderRadius: '0 0 20px 20px' }}>
@@ -53,6 +56,7 @@ function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsFo
     </div>
   );
 }
+
 
 /* ─── Scoring overlay (Who Got It Right?) ────────────────────────────────── */
 function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestionsForLevel>[0] }) {
@@ -250,7 +254,7 @@ export default function GameplayPage() {
           position: 'relative', width: '100%', height: '100%', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          background: '#000', border: '4px solid rgba(255,255,255,0.1)'
+          background: '#000', border: '4px solid rgba(255, 255, 255,0.1)'
         }}>
           <img
             className={`gameplay-image ${(phase === 'answer-reveal' || phase === 'scoring') ? 'image-unblur' : ''}`}
@@ -354,7 +358,7 @@ export default function GameplayPage() {
           width: '36px',
           height: '36px',
           borderRadius: '50%',
-          background: showLegend ? 'var(--glass-bg)' : 'rgba(255,255,255,0.1)',
+          background: showLegend ? 'var(--glass-bg)' : 'rgba(255, 255, 255,0.1)',
           border: '1px solid var(--glass-border)',
           color: '#fff',
           display: 'flex',
@@ -416,7 +420,7 @@ export default function GameplayPage() {
           <button 
             onClick={() => { playNavClick(); undoLastScore(); setShowUndo(false); }}
             style={{ 
-              background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', 
+              background: 'rgba(255, 255, 255,0.2)', color: '#fff', border: 'none', 
               padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', fontWeight: 'bold',
               display: 'flex', alignItems: 'center', gap: '6px'
             }}

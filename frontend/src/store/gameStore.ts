@@ -23,12 +23,25 @@ const useGameStore = create<GameStore>((set, get) => ({
   timeRemaining:   TIMER_SECONDS,
   lastScoreAction: null,
 
+  // ── Playing sequence ───────────────────────────────────────────────────────
+  selectedGames:   [],
+  currentSelectedGameIndex: 0,
+
   // ── Setup ──────────────────────────────────────────────────────────────────
   setPhase: (phase: GamePhase) => set({ phase }),
 
   setPlayerCount: (count: number) => set({ playerCount: count }),
 
   setPlayers: (players: Player[]) => set({ players }),
+
+  setSelectedGames: (games: LevelId[]) => {
+    if (games.length === 0) return;
+    set({
+      selectedGames: games,
+      currentSelectedGameIndex: 0,
+      currentLevel: games[0],
+    });
+  },
 
   // ── Game flow ──────────────────────────────────────────────────────────────
 
@@ -86,16 +99,18 @@ const useGameStore = create<GameStore>((set, get) => ({
   },
 
   nextRound: () => {
-    const { currentRound, currentLevel } = get();
+    const { currentRound, currentLevel, selectedGames, currentSelectedGameIndex } = get();
     const levelQuestions = getQuestionsForLevel(currentLevel);
 
     if (currentRound >= levelQuestions.length) {
-      // Level complete
-      if (currentLevel >= TOTAL_LEVELS) {
+      // Level complete, move to next selected game
+      const nextIndex = currentSelectedGameIndex + 1;
+      if (nextIndex >= selectedGames.length) {
         set({ phase: 'final-results' });
       } else {
         set({
-          currentLevel: (currentLevel + 1) as LevelId,
+          currentSelectedGameIndex: nextIndex,
+          currentLevel: selectedGames[nextIndex],
           currentRound: 1,
           answerRevealed: false,
           timerRunning: false,
@@ -117,15 +132,17 @@ const useGameStore = create<GameStore>((set, get) => ({
 
   skipRound: () => {
     // Skip without revealing — judge decided nobody answered
-    const { currentRound, currentLevel } = get();
+    const { currentRound, currentLevel, selectedGames, currentSelectedGameIndex } = get();
     const levelQuestions = getQuestionsForLevel(currentLevel);
 
     if (currentRound >= levelQuestions.length) {
-      if (currentLevel >= TOTAL_LEVELS) {
+      const nextIndex = currentSelectedGameIndex + 1;
+      if (nextIndex >= selectedGames.length) {
         set({ phase: 'final-results' });
       } else {
         set({
-          currentLevel: (currentLevel + 1) as LevelId,
+          currentSelectedGameIndex: nextIndex,
+          currentLevel: selectedGames[nextIndex],
           currentRound: 1,
           answerRevealed: false,
           timerRunning: false,
@@ -147,12 +164,15 @@ const useGameStore = create<GameStore>((set, get) => ({
 
   skipLevel: () => {
     // DEV TOOL: instantly skip the current level
-    const { currentLevel } = get();
-    if (currentLevel >= TOTAL_LEVELS) {
+    const { selectedGames, currentSelectedGameIndex } = get();
+    const nextIndex = currentSelectedGameIndex + 1;
+
+    if (nextIndex >= selectedGames.length) {
       set({ phase: 'final-results' });
     } else {
       set({
-        currentLevel: (currentLevel + 1) as LevelId,
+        currentSelectedGameIndex: nextIndex,
+        currentLevel: selectedGames[nextIndex],
         currentRound: 1,
         answerRevealed: false,
         timerRunning: false,
@@ -232,6 +252,8 @@ const useGameStore = create<GameStore>((set, get) => ({
       timerRunning: false,
       timeRemaining: TIMER_SECONDS,
       lastScoreAction: null,
+      selectedGames: [],
+      currentSelectedGameIndex: 0,
     });
   },
 
@@ -247,6 +269,8 @@ const useGameStore = create<GameStore>((set, get) => ({
       answerRevealed: false,
       timerRunning:   false,
       timeRemaining:  TIMER_SECONDS,
+      selectedGames:  [],
+      currentSelectedGameIndex: 0,
     }),
 }));
 

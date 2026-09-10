@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useGameStore from '../store/gameStore';
 import { useSound } from '../hooks/useSound';
+import { LEVELS } from '../constants/game';
 import { Volume2, VolumeX } from 'lucide-react';
 import SoundToggle from '../components/SoundToggle';
 
 export default function RoundCountdownPage() {
-  const { currentRound, enterGameplay } = useGameStore();
+  const { currentRound, currentLevel, enterGameplay } = useGameStore();
   const { playNavClick } = useSound();
   const [count, setCount] = useState<number>(3);
 
@@ -73,7 +74,7 @@ export default function RoundCountdownPage() {
           <div style={{
             position: 'relative',
             width: 180, height: 180,
-            background: '#ffffff',
+            background: '#fff',
             borderRadius: '50%',
             boxShadow: '0 10px 40px rgba(236, 72, 153, 0.15), inset 0 -4px 10px rgba(0,0,0,0.02)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -101,7 +102,7 @@ export default function RoundCountdownPage() {
 
         {/* EYES ON SCREEN Pill */}
         <div style={{
-          background: '#ffffff',
+          background: '#fff',
           color: '#c084fc', // purple text
           padding: '10px 24px',
           borderRadius: '30px',
@@ -111,7 +112,7 @@ export default function RoundCountdownPage() {
           boxShadow: '0 4px 12px rgba(236, 72, 153, 0.1)',
           marginTop: '10px'
         }}>
-          EYES ON SCREEN!
+          {LEVELS[currentLevel]?.countdownLabel || 'GET READY!'}
         </div>
 
         {/* Bouncing Dots */}

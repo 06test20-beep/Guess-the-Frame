@@ -3,7 +3,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 
 const STORAGE_KEY = 'gtf_sound_on';
 
-export default function SoundToggle() {
+export default function SoundToggle({ inline = false }: { inline?: boolean }) {
   const [on, setOn] = useState<boolean>(() => {
     return localStorage.getItem(STORAGE_KEY) !== 'false';
   });
@@ -16,13 +16,14 @@ export default function SoundToggle() {
 
   return (
     <button
-      className="sound-toggle"
+      className={inline ? "btn-ghost" : "sound-toggle"}
+      style={inline ? { color: 'var(--text-secondary)', padding: '6px' } : undefined}
       onClick={toggle}
       title={on ? 'Mute sound effects' : 'Unmute sound effects'}
       aria-label={on ? 'Mute' : 'Unmute'}
-      id="sound-toggle-btn"
+      id={inline ? undefined : "sound-toggle-btn"}
     >
-      {on ? <Volume2 size={24} color="var(--primary)" /> : <VolumeX size={24} color="#ef4444" />}
+      {on ? <Volume2 size={inline ? 18 : 24} color={inline ? "var(--text-secondary)" : "var(--primary)"} /> : <VolumeX size={inline ? 18 : 24} color="#ef4444" />}
     </button>
   );
 }

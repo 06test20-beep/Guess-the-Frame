@@ -5,9 +5,10 @@ import { AVATARS } from '../constants/game';
 import SoundToggle from '../components/SoundToggle';
 import { useSound } from '../hooks/useSound';
 import { Gavel } from 'lucide-react';
+import { getQuestionsForLevel } from '../utils/questionStorage';
 
 export default function JudgeSelectionPage() {
-  const { players, currentJudgeId, startRound } = useGameStore();
+  const { players, currentJudgeId, startRound, currentLevel } = useGameStore();
   const { playNavClick, playCorrect } = useSound();
 
   const [isSpinning, setIsSpinning] = useState(true);
@@ -113,7 +114,7 @@ export default function JudgeSelectionPage() {
           )}
         </AnimatePresence>
 
-        <div className="judge-sub" style={{ opacity: isSpinning ? 0.5 : 1 }}>⏱ Judge serves for 10 rounds</div>
+        <div className="judge-sub" style={{ opacity: isSpinning ? 0.5 : 1 }}>⏱ Judge serves for {getQuestionsForLevel(currentLevel).length} rounds</div>
 
         <AnimatePresence>
           {!isSpinning && (

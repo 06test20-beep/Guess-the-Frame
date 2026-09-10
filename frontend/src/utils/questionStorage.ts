@@ -12,7 +12,7 @@ import DEFAULT_QUESTIONS from '../data/questions';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = (level: LevelId) => `gtf_questions_level_${level}`;
-const ALL_LEVELS: LevelId[] = [1, 2, 3, 4];
+const ALL_LEVELS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,10 +21,12 @@ export interface StoredQuestion {
   level: LevelId;
   questionNumber: number;
   type: QuestionType;
-  /** base64 data URL — overrides imagePath at runtime when present */
+  /** base64 data URL — overrides imagePath at runtime when present (eye crop / frame image) */
   imageData?: string;
   /** Original asset path — kept for fallback to /public/assets/levels/… */
   imagePath?: string;
+  /** eye questions only: full-face base64 data URL shown at answer reveal */
+  fullImageData?: string;
   dialogue?: string;
   hint?: string;
   answer: string;
@@ -115,8 +117,10 @@ function storedToQuestion(sq: StoredQuestion): Question {
     level:          sq.level,
     questionNumber: sq.questionNumber,
     type:           sq.type,
-    // imageData (base64) takes priority over imagePath
+    // imageData (base64) takes priority over imagePath for the question (crop) image
     imagePath:      sq.imageData ?? sq.imagePath,
+    // fullImageData is the full-face reveal image (eye questions only)
+    fullImagePath:  sq.fullImageData,
     dialogue:       sq.dialogue,
     hint:           sq.hint,
     answer:         sq.answer,
@@ -178,7 +182,8 @@ export function exportAllAsJSON(): void {
   const payload: Record<string, StoredQuestion[]> = {};
   ALL_LEVELS.forEach(lvl => {
     const stored = loadStoredLevel(lvl);
-    payload[`level_${lvl}`] = stored ?? getDefaultStoredQuestions(lvl);
+    const isDialogue = lvl === 5 || lvl === 7 || lvl === 8;
+    payload[`level_${lvl}`] = stored ?? (isDialogue ? getDefaultStoredQuestions(lvl) : []);
   });
   const blob     = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url      = URL.createObjectURL(blob);

@@ -204,7 +204,7 @@ function StepSetup() {
     }));
     setPlayers(players);
     playStartGame();
-    setPhase('level-intro');
+    setPhase('playing-sequence');
   };
 
   return (

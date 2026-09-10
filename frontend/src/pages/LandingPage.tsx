@@ -39,29 +39,31 @@ export default function LandingPage() {
           <span>🏆 Live Scoring</span>
         </div>
 
-        {/* CTA */}
-        <button
-          id="landing-start-btn"
-          className="btn-primary"
-          style={{ fontSize:'1.1rem', padding:'16px 48px', marginTop:8 }}
-          onClick={() => {
-            playStartGame();
-            setPhase('player-count');
-          }}
-        >
-          🎉 Start Game
-        </button>
-
-        <button
-          className="btn-ghost"
-          style={{ display: 'none' }} // hiding this accidentally duplicated button
-          onClick={() => {
-            playNavClick();
-            setPhase('player-count');
-          }}
-        >
-          ← Back to Home
-        </button>
+        {/* CTAs */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8, width: '100%', maxWidth: 300 }}>
+          <button
+            id="landing-start-btn"
+            className="btn-primary"
+            style={{ fontSize:'1.1rem', padding:'16px 24px', width: '100%' }}
+            onClick={() => {
+              playStartGame();
+              setPhase('player-count');
+            }}
+          >
+            🎉 Local Party
+          </button>
+          
+          <button
+            className="btn-gold"
+            style={{ fontSize:'1.1rem', padding:'16px 24px', width: '100%' }}
+            onClick={() => {
+              playNavClick();
+              setPhase('online-setup');
+            }}
+          >
+            🌐 Online Multiplayer
+          </button>
+        </div>
 
         {/* Admin entry — subtle, at the bottom */}
         <button

@@ -23,10 +23,9 @@
       "id": "l4q01_test",
       "level": 4,
       "questionNumber": 1,
-      "type": "dialogue",
-      "dialogue": "“This is a custom imported dialogue to test the Admin Panel!”",
-      "hint": "Test Hint",
-      "answer": "Test Dialogue Movie"
+      "type": "eye",
+      "imageData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HgAGgwJ/lK3Q6wAAAABJRU5ErkJggg==",
+      "answer": "Test Eye Answer"
     }
   ]
 }

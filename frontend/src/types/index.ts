@@ -17,14 +17,15 @@ export interface Player {
 
 // ─── Questions ──────────────────────────────────────────────────────────────
 export type QuestionType = 'frame' | 'eye' | 'dialogue';
-export type LevelId = 1 | 2 | 3 | 4;
+export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export interface Question {
   id: string;
   level: LevelId;
   questionNumber: number;
   type: QuestionType;
-  imagePath?: string;        // for frame / eye questions
+  imagePath?: string;        // for frame / eye questions (cropped eye during question)
+  fullImagePath?: string;    // for eye questions ONLY — full face image shown at answer reveal
   dialogue?: string;         // for dialogue questions
   hint?: string;             // optional sub-hint shown in dialogue answer card
   answer: string;
@@ -54,7 +55,11 @@ export type GamePhase =
   | 'answer-reveal'
   | 'scoring'
   | 'final-results'
-  | 'admin';
+  | 'admin'
+  | 'online-setup'
+  | 'online-lobby'
+  | 'online-gameplay'
+  | 'playing-sequence';
 
 // ─── Store shape ─────────────────────────────────────────────────────────────
 export interface GameStore {
@@ -67,6 +72,9 @@ export interface GameStore {
   currentJudgeId: string | null;
   judgeHistory: string[]; // IDs of players who've already been judge
 
+  selectedGames: LevelId[];
+  currentSelectedGameIndex: number;
+
   imageRevealed: boolean;
   answerRevealed: boolean;
   timerRunning: boolean;
@@ -76,6 +84,7 @@ export interface GameStore {
   setPhase: (phase: GamePhase) => void;
   setPlayerCount: (count: number) => void;
   setPlayers: (players: Player[]) => void;
+  setSelectedGames: (games: LevelId[]) => void;
 
   // ── Game flow ─────────────────────────────────────────────────────────────
   startLevel: () => void;
