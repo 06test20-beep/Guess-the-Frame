@@ -1,19 +1,49 @@
 import { create } from 'zustand';
-import type { GameStore, GamePhase, Player, LevelId } from '../types';
-import { CORRECT_POINTS, WRONG_POINTS, JUDGE_BONUS, TIMER_SECONDS, TOTAL_LEVELS } from '../constants/game';
+import type { GameStore, GamePhase, Player, LevelId, ModeId } from '../types';
+import { CORRECT_POINTS, WRONG_POINTS, JUDGE_BONUS, TIMER_SECONDS, LEVEL_ID_TO_MODE_ID, MODE_ID_TO_LEVEL_ID } from '../constants/game';
 import { selectNextJudge } from '../utils/judgeRotation';
-import { getQuestionsForLevel } from '../utils/questionStorage';
+import { getQuestionsForMode, getQuestionsForLevel } from '../utils/questionStorage';
+import { getModeById } from '../utils/modeRegistry';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Central game store (Zustand)
+//  Central game store (Zustand) — V2 with backward-compat V1 aliases
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get the timer for a given ModeId from the registry.
+ * Falls back to TIMER_SECONDS (30s) if the mode is not found.
+ */
+function getModeTimerSeconds(modeId: ModeId): number {
+  const mode = getModeById(modeId);
+  return mode?.timerSeconds ?? TIMER_SECONDS;
+}
+
+/** Convert a ModeId to its V1 LevelId (for compat), or 1 if not found. */
+function modeIdToLevelId(modeId: ModeId): LevelId {
+  const id = MODE_ID_TO_LEVEL_ID[modeId];
+  return (id ?? 1) as LevelId;
+}
+
+/** Convert a LevelId to its V2 ModeId. */
+function levelIdToModeId(level: LevelId): ModeId {
+  return LEVEL_ID_TO_MODE_ID[level] ?? String(level);
+}
 
 const useGameStore = create<GameStore>((set, get) => ({
   // ── Initial state ──────────────────────────────────────────────────────────
   phase:           'landing',
   players:         [],
   playerCount:     4,
+
+  // V2
+  currentModeId:   'hollywood',
+  selectedModes:   [],
+  currentSelectedGameIndex: 0,
+
+  // V1 compat aliases (derived from V2 state)
   currentLevel:    1,
+  selectedGames:   [],
+
   currentRound:    1,
   currentJudgeId:  null,
   judgeHistory:    [],
@@ -23,34 +53,45 @@ const useGameStore = create<GameStore>((set, get) => ({
   timeRemaining:   TIMER_SECONDS,
   lastScoreAction: null,
 
-  // ── Playing sequence ───────────────────────────────────────────────────────
-  selectedGames:   [],
-  currentSelectedGameIndex: 0,
-
   // ── Setup ──────────────────────────────────────────────────────────────────
   setPhase: (phase: GamePhase) => set({ phase }),
-
   setPlayerCount: (count: number) => set({ playerCount: count }),
-
   setPlayers: (players: Player[]) => set({ players }),
 
+  /** V2: set selected modes by ModeId array */
+  setSelectedModes: (modes: ModeId[]) => {
+    if (modes.length === 0) return;
+    const firstModeId = modes[0];
+    set({
+      selectedModes: modes,
+      currentModeId: firstModeId,
+      currentSelectedGameIndex: 0,
+      // V1 compat aliases
+      selectedGames: modes.map(m => modeIdToLevelId(m)),
+      currentLevel:  modeIdToLevelId(firstModeId),
+    });
+  },
+
+  /** V1 compat: set selected games by LevelId — converts to ModeId internally */
   setSelectedGames: (games: LevelId[]) => {
     if (games.length === 0) return;
+    const modes = games.map(levelIdToModeId);
     set({
       selectedGames: games,
       currentSelectedGameIndex: 0,
       currentLevel: games[0],
+      // V2
+      selectedModes: modes,
+      currentModeId: modes[0],
     });
   },
 
   // ── Game flow ──────────────────────────────────────────────────────────────
 
-  /** Called when entering a level — just changes phase; judge selected separately */
   startLevel: () => set({ phase: 'level-intro' }),
 
   selectJudge: () => {
     const { players, judgeHistory } = get();
-    // Contestants only (exclude current judge if re-selected mid-game)
     const next = selectNextJudge(players, judgeHistory);
     set({
       currentJudgeId: next.id,
@@ -59,13 +100,15 @@ const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  startRound: () => {
+  startRound: (timerSeconds?: number) => {
+    const { currentModeId } = get();
+    const timer = timerSeconds ?? getModeTimerSeconds(currentModeId);
     set({
       phase:          'round-countdown',
       imageRevealed:  false,
       answerRevealed: false,
       timerRunning:   false,
-      timeRemaining:  TIMER_SECONDS,
+      timeRemaining:  timer,
     });
   },
 
@@ -99,22 +142,26 @@ const useGameStore = create<GameStore>((set, get) => ({
   },
 
   nextRound: () => {
-    const { currentRound, currentLevel, selectedGames, currentSelectedGameIndex } = get();
-    const levelQuestions = getQuestionsForLevel(currentLevel);
+    const { currentRound, currentModeId, selectedModes, currentSelectedGameIndex } = get();
+    const questions = getQuestionsForMode(currentModeId);
+    const timer = getModeTimerSeconds(currentModeId);
 
-    if (currentRound >= levelQuestions.length) {
-      // Level complete, move to next selected game
+    if (currentRound >= questions.length) {
+      // Mode complete — move to next selected game
       const nextIndex = currentSelectedGameIndex + 1;
-      if (nextIndex >= selectedGames.length) {
+      if (nextIndex >= selectedModes.length) {
         set({ phase: 'final-results' });
       } else {
+        const nextModeId = selectedModes[nextIndex];
+        const nextTimer = getModeTimerSeconds(nextModeId);
         set({
           currentSelectedGameIndex: nextIndex,
-          currentLevel: selectedGames[nextIndex],
+          currentModeId: nextModeId,
+          currentLevel: modeIdToLevelId(nextModeId),
           currentRound: 1,
           answerRevealed: false,
           timerRunning: false,
-          timeRemaining: TIMER_SECONDS,
+          timeRemaining: nextTimer,
           phase: 'level-intro',
         });
       }
@@ -125,28 +172,31 @@ const useGameStore = create<GameStore>((set, get) => ({
         imageRevealed:  false,
         answerRevealed: false,
         timerRunning:   false,
-        timeRemaining:  TIMER_SECONDS,
+        timeRemaining:  timer,
       });
     }
   },
 
   skipRound: () => {
-    // Skip without revealing — judge decided nobody answered
-    const { currentRound, currentLevel, selectedGames, currentSelectedGameIndex } = get();
-    const levelQuestions = getQuestionsForLevel(currentLevel);
+    const { currentRound, currentModeId, selectedModes, currentSelectedGameIndex } = get();
+    const questions = getQuestionsForMode(currentModeId);
+    const timer = getModeTimerSeconds(currentModeId);
 
-    if (currentRound >= levelQuestions.length) {
+    if (currentRound >= questions.length) {
       const nextIndex = currentSelectedGameIndex + 1;
-      if (nextIndex >= selectedGames.length) {
+      if (nextIndex >= selectedModes.length) {
         set({ phase: 'final-results' });
       } else {
+        const nextModeId = selectedModes[nextIndex];
+        const nextTimer = getModeTimerSeconds(nextModeId);
         set({
           currentSelectedGameIndex: nextIndex,
-          currentLevel: selectedGames[nextIndex],
+          currentModeId: nextModeId,
+          currentLevel: modeIdToLevelId(nextModeId),
           currentRound: 1,
           answerRevealed: false,
           timerRunning: false,
-          timeRemaining: TIMER_SECONDS,
+          timeRemaining: nextTimer,
           phase: 'level-intro',
         });
       }
@@ -157,26 +207,28 @@ const useGameStore = create<GameStore>((set, get) => ({
         imageRevealed:  false,
         answerRevealed: false,
         timerRunning:   false,
-        timeRemaining:  TIMER_SECONDS,
+        timeRemaining:  timer,
       });
     }
   },
 
   skipLevel: () => {
-    // DEV TOOL: instantly skip the current level
-    const { selectedGames, currentSelectedGameIndex } = get();
+    const { selectedModes, currentSelectedGameIndex } = get();
     const nextIndex = currentSelectedGameIndex + 1;
 
-    if (nextIndex >= selectedGames.length) {
+    if (nextIndex >= selectedModes.length) {
       set({ phase: 'final-results' });
     } else {
+      const nextModeId = selectedModes[nextIndex];
+      const nextTimer = getModeTimerSeconds(nextModeId);
       set({
         currentSelectedGameIndex: nextIndex,
-        currentLevel: selectedGames[nextIndex],
+        currentModeId: nextModeId,
+        currentLevel: modeIdToLevelId(nextModeId),
         currentRound: 1,
         answerRevealed: false,
         timerRunning: false,
-        timeRemaining: TIMER_SECONDS,
+        timeRemaining: nextTimer,
         phase: 'level-intro',
       });
     }
@@ -228,7 +280,6 @@ const useGameStore = create<GameStore>((set, get) => ({
   undoLastScore: () => {
     const { players, lastScoreAction } = get();
     if (!lastScoreAction) return;
-
     set({
       players: players.map(p =>
         p.id === lastScoreAction.playerId
@@ -244,6 +295,7 @@ const useGameStore = create<GameStore>((set, get) => ({
   quitGame: () => {
     set({
       phase: 'landing',
+      currentModeId: 'hollywood',
       currentLevel: 1,
       currentRound: 1,
       currentJudgeId: null,
@@ -252,6 +304,7 @@ const useGameStore = create<GameStore>((set, get) => ({
       timerRunning: false,
       timeRemaining: TIMER_SECONDS,
       lastScoreAction: null,
+      selectedModes: [],
       selectedGames: [],
       currentSelectedGameIndex: 0,
     });
@@ -262,6 +315,7 @@ const useGameStore = create<GameStore>((set, get) => ({
       phase:          'player-count',
       players:        [],
       playerCount:    4,
+      currentModeId:  'hollywood',
       currentLevel:   1,
       currentRound:   1,
       currentJudgeId: null,
@@ -269,6 +323,7 @@ const useGameStore = create<GameStore>((set, get) => ({
       answerRevealed: false,
       timerRunning:   false,
       timeRemaining:  TIMER_SECONDS,
+      selectedModes:  [],
       selectedGames:  [],
       currentSelectedGameIndex: 0,
     }),

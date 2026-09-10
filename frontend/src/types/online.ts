@@ -45,10 +45,11 @@ export interface RoomState {
   state: 'lobby' | 'playing' | 'results';
 
   // Playing phase fields
-  currentLevelId?: LevelId;
-  currentLevelIndex?: number;
+  currentModeId?: ModeId;
+  currentLevelId?: LevelId; // V1 compat
+  currentModeIndex?: number;
   currentRoundNumber?: number;
-  totalRoundsInLevel?: number;
+  totalRoundsInMode?: number;
   roundPhase?: RoundPhase;
   roundEndTimeMs?: number;
   firstCorrectTimeMs?: number;

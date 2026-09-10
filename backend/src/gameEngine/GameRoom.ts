@@ -129,12 +129,12 @@ export class GameRoom {
         if (connected.some(p => !p.isReady)) return callback({ error: 'Not everyone is ready' });
 
         const payload = action.payload as HostGamePayload;
-        if (!payload?.selectedGames?.length) return callback({ error: 'No games selected' });
+        if (!payload?.selectedModes?.length) return callback({ error: 'No games selected' });
 
         // Build immutable session snapshot
-        const { snapshot, assets } = buildSessionSnapshot(payload, (_lvl: LevelId) => {
+        const { snapshot, assets } = buildSessionSnapshot(payload, (modeId: string) => {
           // Host is sending all data; no server-side defaults needed here
-          // Return empty — the payload should contain all levels
+          // Return empty — the payload should contain all modes
           return [];
         });
 

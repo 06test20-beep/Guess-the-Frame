@@ -1,29 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useGameStore from '../store/gameStore';
-import { LEVELS } from '../constants/game';
-import type { LevelId } from '../types';
+import type { ModeId, GameMode } from '../types';
 import SoundToggle from '../components/SoundToggle';
 import { useSound } from '../hooks/useSound';
 import { useOnlineGameStore } from '../store/onlineGameStore';
+import { getEnabledModes, getModeById } from '../utils/modeRegistry';
+import { getQuestionsForMode } from '../utils/questionStorage';
 
 export default function PlayingSequencePage() {
-  const { phase, setPhase, setSelectedGames } = useGameStore();
-  const { roomCode, socket, hostId } = useOnlineGameStore();
+  const { phase, setPhase, setSelectedModes } = useGameStore();
+  const { roomCode } = useOnlineGameStore();
   const { playNavClick, playStartGame } = useSound();
 
-  const [selected, setSelected] = useState<LevelId[]>([]);
+  const [selected, setSelected] = useState<ModeId[]>([]);
+  const [availableModes, setAvailableModes] = useState<GameMode[]>([]);
+
+  useEffect(() => {
+    setAvailableModes(getEnabledModes());
+  }, []);
 
   // Max slots is 4
   const slots = Array.from({ length: 4 }, (_, i) => selected[i] || null);
 
-  const handleAddGame = (id: LevelId) => {
+  const handleAddGame = (id: ModeId) => {
     if (selected.includes(id)) return;
     if (selected.length >= 4) return;
     playNavClick();
     setSelected([...selected, id]);
   };
 
-  const handleRemoveGame = (id: LevelId) => {
+  const handleRemoveGame = (id: ModeId) => {
     playNavClick();
     setSelected(selected.filter(g => g !== id));
   };
@@ -31,23 +37,18 @@ export default function PlayingSequencePage() {
   const handleConfirm = () => {
     if (selected.length === 0) return;
     playStartGame();
-    setSelectedGames(selected);
+    setSelectedModes(selected);
     
     if (roomCode) {
-      // If we are online, just go back to the lobby, the host has set the games in gameStore.
-      // We will upload them to the server when they actually hit "Start Game" in the lobby.
       setPhase('online-lobby');
     } else {
       setPhase('level-intro');
     }
   };
 
-  const availableGames = Object.values(LEVELS);
-
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      /* Background removed so it inherits global body texture/colors */
       overflowY: 'auto',
       display: 'flex',
       flexDirection: 'column',
@@ -156,11 +157,9 @@ export default function PlayingSequencePage() {
       
       <div className="anim-fade" style={{ 
         maxWidth: '1000px', width: '100%', 
-        // Inner layout pink gradient
         background: 'linear-gradient(135deg, #FF6EB4 0%, #9B59B6 100%)', 
         borderRadius: '32px',
         border: '1px solid rgba(255, 255, 255,0.4)',
-        // Drop shadow with pink glow
         boxShadow: '0 24px 80px rgba(255, 110, 180, 0.45)',
         padding: '50px',
         margin: 'auto'
@@ -242,10 +241,10 @@ export default function PlayingSequencePage() {
             Playing Order <div style={{ height: '1.5px', flex: 1, background: 'rgba(255, 255, 255,0.3)' }}></div>
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-            {slots.map((gameId, idx) => {
-              const game = gameId ? LEVELS[gameId] : null;
+            {slots.map((modeId, idx) => {
+              const mode = modeId ? getModeById(modeId) : null;
               return (
-                <div key={`slot-${idx}`} className={`seq-slot ${game ? 'filled' : ''}`}>
+                <div key={`slot-${idx}`} className={`seq-slot ${mode ? 'filled' : ''}`}>
                   <div style={{ 
                     fontSize: '0.75rem', 
                     textTransform: 'uppercase', 
@@ -258,14 +257,14 @@ export default function PlayingSequencePage() {
                     alignItems: 'center'
                   }}>
                     Round {idx + 1}
-                    {game && (
+                    {mode && (
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(255, 255, 255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
-                        {game.icon}
+                        {mode.icon}
                       </div>
                     )}
                   </div>
                   
-                  {game ? (
+                  {mode ? (
                     <>
                       <div style={{ 
                         position: 'absolute', right: '10px', bottom: '-10px', fontSize: '6rem', 
@@ -274,13 +273,13 @@ export default function PlayingSequencePage() {
                         {idx + 1}
                       </div>
                       <div style={{ fontWeight: 800, fontSize: '1.2rem', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, marginBottom: '6px', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                        {game.title}
+                        {mode.name}
                       </div>
                       <div style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255,0.9)', fontWeight: 700 }}>
-                        {game.subtitle}
+                        {mode.subtitle}
                       </div>
                       <button
-                        onClick={() => handleRemoveGame(gameId)}
+                        onClick={() => handleRemoveGame(modeId)}
                         style={{
                           position: 'absolute', top: '12px', right: '12px',
                           background: 'rgba(0,0,0,0.2)', border: 'none', color: '#fff',
@@ -327,15 +326,16 @@ export default function PlayingSequencePage() {
           </h2>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-            {availableGames.map(game => {
-              const isSelected = selected.includes(game.id as LevelId);
+            {availableModes.map(mode => {
+              const isSelected = selected.includes(mode.id);
+              const questionsCount = getQuestionsForMode(mode.id).length;
               return (
                 <div
-                  key={game.id}
+                  key={mode.id}
                   className={`seq-card ${isSelected ? 'added' : ''}`}
-                  onClick={() => !isSelected && handleAddGame(game.id as LevelId)}
+                  onClick={() => !isSelected && handleAddGame(mode.id)}
                 >
-                  <div className="seq-card-icon">{game.icon}</div>
+                  <div className="seq-card-icon">{mode.icon}</div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                     <div style={{ 
@@ -343,18 +343,18 @@ export default function PlayingSequencePage() {
                       background: 'rgba(255, 255, 255,0.9)', display: 'flex', alignItems: 'center', 
                       justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                     }}>
-                      {game.icon}
+                      {mode.icon}
                     </div>
                     <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255, 255, 255,0.8)', fontWeight: 800 }}>
-                      {game.countdownLabel}
+                      {mode.countdownLabel}
                     </div>
                   </div>
                   
                   <div style={{ fontWeight: 800, fontSize: '1.4rem', fontFamily: "'Poppins', sans-serif", marginBottom: '6px', color: '#fff', lineHeight: 1.2, textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                    {game.title}
+                    {mode.name}
                   </div>
                   <div style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255,0.9)', fontWeight: 700, marginBottom: '24px' }}>
-                    {game.subtitle}
+                    {mode.subtitle}
                   </div>
                   
                   <div style={{ 
@@ -362,7 +362,7 @@ export default function PlayingSequencePage() {
                     background: 'rgba(255, 255, 255,0.2)', padding: '12px 16px', borderRadius: '12px', margin: '0 -4px -4px -4px'
                   }}>
                     <div style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 800, letterSpacing: '1px' }}>
-                      {game.rounds} ROUNDS
+                      {questionsCount} ROUNDS
                     </div>
                     <div style={{ 
                       fontSize: '0.85rem', fontWeight: 900, 

@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useGameStore from '../store/gameStore';
 import { useSound } from '../hooks/useSound';
-import { LEVELS } from '../constants/game';
+import { getModeById } from '../utils/modeRegistry';
 import { Volume2, VolumeX } from 'lucide-react';
 import SoundToggle from '../components/SoundToggle';
 
 export default function RoundCountdownPage() {
-  const { currentRound, currentLevel, enterGameplay } = useGameStore();
+  const { currentRound, currentModeId, enterGameplay } = useGameStore();
+  const currentMode = getModeById(currentModeId);
   const { playNavClick } = useSound();
   const [count, setCount] = useState<number>(3);
 
@@ -112,7 +113,7 @@ export default function RoundCountdownPage() {
           boxShadow: '0 4px 12px rgba(236, 72, 153, 0.1)',
           marginTop: '10px'
         }}>
-          {LEVELS[currentLevel]?.countdownLabel || 'GET READY!'}
+          {currentMode?.countdownLabel || 'GET READY!'}
         </div>
 
         {/* Bouncing Dots */}

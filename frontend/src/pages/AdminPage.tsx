@@ -1,36 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trash2, Loader2, Eye, Film, Check, RotateCcw, Save, Plus, AlertTriangle, Settings, Upload, Download, ArrowLeft, Camera, X } from 'lucide-react';
 import useGameStore from '../store/gameStore';
-import { LEVELS } from '../constants/game';
-import type { LevelId, QuestionType } from '../types';
+import type { ModeId, QuestionType, GameMode } from '../types';
 import {
-  loadStoredLevel,
-  saveLevel,
+  loadStoredMode,
+  saveModeQuestions,
   exportAllAsJSON,
   importFromJSON,
-  getDefaultStoredQuestions,
-  levelHasCustomData,
+  modeHasCustomData,
   compressImage,
   type StoredQuestion,
 } from '../utils/questionStorage';
+import { getRegistry, saveRegistry } from '../utils/modeRegistry';
+import { getQuestionsForMode } from '../utils/questionStorage';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Admin Panel — Question Content Manager
+//  Admin Panel — Question Content Manager (V2)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LEVEL_IDS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-// Default question type per level
-function defaultTypeForLevel(levelId: LevelId): QuestionType {
-  if (levelId === 4) return 'eye';
-  if (levelId === 5 || levelId === 7 || levelId === 8) return 'dialogue';
-  return 'frame';
-}
-
-function makeNewQuestion(level: LevelId, num: number, type: QuestionType): StoredQuestion {
+function makeNewQuestion(modeId: ModeId, num: number, type: QuestionType): StoredQuestion {
   return {
-    id:             `l${level}q${String(num).padStart(2, '0')}_${Date.now()}`,
-    level,
+    id:             `m_${modeId}_q${String(num).padStart(2, '0')}_${Date.now()}`,
+    level:          1, // fallback for legacy compat
+    modeId,
     questionNumber: num,
     type,
     answer:         '',
@@ -315,20 +307,36 @@ function QuestionCard({
   );
 }
 
-/* ── Level panel ─────────────────────────────────────────────────────────── */
-function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => void }) {
-  const level = LEVELS[levelId];
+/* ── Mode panel ──────────────────────────────────────────────────────────── */
+function ModePanel({ mode, onUpdate }: { mode: GameMode, onUpdate: () => void }) {
   const [questions,  setQuestions]  = useState<StoredQuestion[]>([]);
   const [dirty,      setDirty]      = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
-    const stored = loadStoredLevel(levelId);
-    const defaultType = defaultTypeForLevel(levelId);
-    setQuestions(stored ?? (defaultType === 'dialogue' ? getDefaultStoredQuestions(levelId) : []));
+    const stored = loadStoredMode(mode.id);
+    if (stored) {
+      setQuestions(stored);
+    } else {
+      // Load defaults if built-in
+      const defaults = getQuestionsForMode(mode.id);
+      setQuestions(defaults.map((q, i) => ({
+        id: q.id,
+        level: q.level,
+        modeId: mode.id,
+        questionNumber: i + 1,
+        type: q.type,
+        answer: q.answer,
+        imagePath: q.imagePath,
+        fullImageData: q.fullImagePath,
+        dialogue: q.dialogue,
+        hint: q.hint,
+        year: q.year,
+      } as StoredQuestion)));
+    }
     setDirty(false);
     setSaveStatus('idle');
-  }, [levelId]);
+  }, [mode.id]);
 
   const markDirty = () => { setDirty(true); setSaveStatus('idle'); };
 
@@ -345,14 +353,17 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
   };
 
   const addQuestion = () => {
-    const defaultType = defaultTypeForLevel(levelId);
-    setQuestions(prev => [...prev, makeNewQuestion(levelId, prev.length + 1, defaultType)]);
+    // Determine type from template
+    const type: QuestionType = (mode.templateId === 'eye' || mode.templateId === 'dialogue' || mode.templateId === 'frame')
+      ? mode.templateId as QuestionType
+      : 'frame';
+    setQuestions(prev => [...prev, makeNewQuestion(mode.id, prev.length + 1, type)]);
     markDirty();
   };
 
   const handleSave = () => {
     const renumbered = questions.map((q, i) => ({ ...q, questionNumber: i + 1 }));
-    saveLevel(levelId, renumbered);
+    saveModeQuestions(mode.id, renumbered);
     setQuestions(renumbered);
     setDirty(false);
     setSaveStatus('saved');
@@ -362,8 +373,8 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
 
   const handleReset = () => {
     if (!confirm(
-      `Clear Level ${levelId}?\n\n` +
-      'This will remove all questions from the editor for this level so you can start fresh.'
+      `Clear Mode ${mode.name}?\n\n` +
+      'This will remove all questions from the editor for this mode so you can start fresh.'
     )) return;
     setQuestions([]);
     setDirty(true);
@@ -372,16 +383,16 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
 
   return (
     <div>
-      {/* Level header bar */}
+      {/* Mode header bar */}
       <div className="admin-level-header">
-        <div className="admin-level-icon" style={{ background: level.iconBg }}>
-          {level.icon}
+        <div className="admin-level-icon" style={{ background: mode.iconBg }}>
+          {mode.icon}
         </div>
         <div>
-          <div className="admin-level-title">{level.title}</div>
+          <div className="admin-level-title">{mode.name}</div>
           <div className="admin-level-sub">
-            {level.subtitle} &mdash; {questions.length} question{questions.length !== 1 ? 's' : ''}
-            {levelHasCustomData(levelId)
+            {mode.subtitle} &mdash; {questions.length} question{questions.length !== 1 ? 's' : ''}
+            {modeHasCustomData(mode.id)
               ? <span style={{ color: 'var(--timer-green)', marginLeft: 8 }}>● Custom</span>
               : <span style={{ color: 'var(--text-muted)',  marginLeft: 8 }}>○ Defaults</span>
             }
@@ -394,14 +405,14 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
           <button
             className="btn-outline"
             onClick={handleReset}
-            id={`admin-reset-level-${levelId}`}
+            id={`admin-reset-mode-${mode.id}`}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <RotateCcw size={16} /> Clear Level
+            <RotateCcw size={16} /> Clear Mode
           </button>
           <button
             className="btn-primary"
-            id={`admin-save-level-${levelId}`}
+            id={`admin-save-mode-${mode.id}`}
             onClick={handleSave}
             disabled={!dirty}
             style={{ minWidth: 130, opacity: dirty ? 1 : 0.6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
@@ -409,7 +420,7 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
             {dirty && <Save size={16} />}
             {!dirty && saveStatus !== 'saved' && <Check size={16} />}
             {saveStatus === 'saved' && <Check size={16} />}
-            {saveStatus === 'saved' ? 'Saved!' : dirty ? 'Save Level' : 'Up to date'}
+            {saveStatus === 'saved' ? 'Saved!' : dirty ? 'Save Mode' : 'Up to date'}
           </button>
         </div>
       </div>
@@ -430,7 +441,7 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
           <button
             className="admin-add-card"
             onClick={addQuestion}
-            id={`admin-add-q-level-${levelId}`}
+            id={`admin-add-q-mode-${mode.id}`}
           >
             <Plus size={32} color="var(--primary)" />
             <span>Add Question</span>
@@ -441,7 +452,7 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
       {/* Unsaved warning */}
       {dirty && (
         <div className="admin-unsaved-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <AlertTriangle size={18} /> Unsaved changes — click <strong>Save Level</strong> to apply to the game.
+          <AlertTriangle size={18} /> Unsaved changes — click <strong>Save Mode</strong> to apply to the game.
         </div>
       )}
     </div>
@@ -451,11 +462,20 @@ function LevelPanel({ levelId, onUpdate }: { levelId: LevelId, onUpdate: () => v
 /* ── Admin Page root ─────────────────────────────────────────────────────── */
 export default function AdminPage() {
   const setPhase      = useGameStore(s => s.setPhase);
-  const [activeLevel, setActiveLevel] = useState<LevelId>(1);
+  const [modes, setModes] = useState<GameMode[]>([]);
+  const [activeModeId, setActiveModeId] = useState<ModeId | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const [importTick, setImportTick] = useState(0);
+
+  useEffect(() => {
+    const registry = getRegistry();
+    setModes(registry);
+    if (!activeModeId && registry.length > 0) {
+      setActiveModeId(registry[0].id);
+    }
+  }, [importTick, activeModeId]);
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -465,10 +485,12 @@ export default function AdminPage() {
       const raw = reader.result as string;
       const result = importFromJSON(raw);
       if (result.ok) {
-        setImportStatus(`✓ Imported Levels: ${result.levels.join(', ')}`);
+        setImportStatus(`✓ Imported ${result.modesImported} mode(s)`);
+        if (result.newRegistry) {
+          saveRegistry(result.newRegistry);
+        }
         setImportTick(t => t + 1);
-        setActiveLevel(0 as LevelId);
-        setTimeout(() => setActiveLevel(result.levels[0] ?? 1), 50);
+        setActiveModeId(null);
       } else {
         setImportStatus(`✗ ${result.error}`);
       }
@@ -477,6 +499,12 @@ export default function AdminPage() {
     reader.readAsText(file);
     e.target.value = '';
   };
+
+  const handleExport = () => {
+    exportAllAsJSON(getRegistry());
+  };
+
+  const activeMode = modes.find(m => m.id === activeModeId) || modes[0];
 
   return (
     <div className="admin-bg">
@@ -510,7 +538,7 @@ export default function AdminPage() {
           <button
             className="btn-outline"
             id="admin-export-btn"
-            onClick={exportAllAsJSON}
+            onClick={handleExport}
             title="Download all question data as a JSON backup file"
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
@@ -552,7 +580,7 @@ export default function AdminPage() {
           <Camera size={48} color="var(--primary)" style={{ flexShrink: 0 }} />
           <div>
             <strong>How it works:</strong> Upload images by clicking or dragging them onto a question card.
-            Images are auto-compressed before saving. Fill in the answer and click <strong>Save Level</strong>.
+            Images are auto-compressed before saving. Fill in the answer and click <strong>Save Mode</strong>.
             Changes are stored in your browser and used immediately — no file editing needed.
             For <strong>Guess The Eyes</strong>, upload the eye crop <em>and</em> the full face image for a dual reveal.
             Use <strong>Export JSON</strong> to create a backup and <strong>Import JSON</strong> to restore it.
@@ -563,29 +591,28 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Level tabs */}
+        {/* Mode tabs */}
         <div className="admin-tabs" key={importTick}>
-          {LEVEL_IDS.map(id => {
-            const lv       = LEVELS[id];
-            const hasCustom = levelHasCustomData(id);
+          {modes.map(mode => {
+            const hasCustom = modeHasCustomData(mode.id);
             return (
               <button
-                key={id}
-                id={`admin-tab-level-${id}`}
-                className={`admin-tab ${activeLevel === id ? 'admin-tab--active' : ''}`}
-                onClick={() => setActiveLevel(id)}
+                key={mode.id}
+                id={`admin-tab-mode-${mode.id}`}
+                className={`admin-tab ${activeMode?.id === mode.id ? 'admin-tab--active' : ''}`}
+                onClick={() => setActiveModeId(mode.id)}
               >
-                <span>{lv.icon}</span>
-                <span>Level {id} — {lv.title}</span>
+                <span>{mode.icon}</span>
+                <span>{mode.name}</span>
                 {hasCustom && <span className="admin-tab-dot" title="Has custom questions" />}
               </button>
             );
           })}
         </div>
 
-        {/* Active level panel */}
+        {/* Active mode panel */}
         <div className="admin-panel-wrap">
-          {activeLevel > 0 && <LevelPanel key={`${activeLevel}-${importTick}`} levelId={activeLevel} onUpdate={() => setImportTick(t => t + 1)} />}
+          {activeMode && <ModePanel key={`${activeMode.id}-${importTick}`} mode={activeMode} onUpdate={() => setImportTick(t => t + 1)} />}
         </div>
       </div>
     </div>

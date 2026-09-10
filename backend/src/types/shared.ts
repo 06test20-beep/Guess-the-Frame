@@ -6,12 +6,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type QuestionType = 'frame' | 'eye' | 'dialogue';
-export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; // V1 compat
+export type ModeId = string;
 
 // ─── Server-secret question record (never sent to players before reveal) ──────
 export interface ServerQuestion {
   id: string;
-  level: LevelId;
+  level?: LevelId; // V1 compat
+  modeId: ModeId;
   questionNumber: number;
   type: QuestionType;
   /** Correct answer — NEVER sent to clients before reveal */
@@ -26,7 +28,8 @@ export interface ServerQuestion {
 // ─── Player-visible question (safe to broadcast) ─────────────────────────────
 export interface ClientQuestion {
   id: string;
-  level: LevelId;
+  level?: LevelId; // V1 compat
+  modeId: ModeId;
   questionNumber: number;
   type: QuestionType;
   /** Present for dialogue/text questions — safe to show */
@@ -49,18 +52,20 @@ export interface SessionAsset {
 }
 
 // ─── Full session snapshot for a game sequence (immutable after game start) ───
-export interface SessionLevel {
-  levelId: LevelId;
+export interface SessionMode {
+  modeId: ModeId;
   /** Server-only secrets */
   serverQuestions: ServerQuestion[];
   /** Player-visible question metadata */
   clientQuestions: ClientQuestion[];
+  /** Game mode definition metadata */
+  modeDefinition: any; // GameMode type is frontend-only, we treat it as opaque JSON
 }
 
 export interface SessionSnapshot {
   createdAt: number;
-  selectedGames: LevelId[];
-  levels: Record<LevelId, SessionLevel>;
+  selectedModes: ModeId[];
+  modes: Record<ModeId, SessionMode>;
   /** Total size in bytes of all images in session — enforced limit: 50MB */
   totalImageBytes: number;
 }
@@ -93,10 +98,11 @@ export interface RoomState {
   phase: 'lobby' | 'playing' | 'results';
 
   // Round info (populated during 'playing' phase)
-  currentLevelId?: LevelId;
-  currentLevelIndex?: number;
+  currentModeId?: ModeId;
+  currentLevelId?: LevelId; // V1 compat
+  currentModeIndex?: number;
   currentRoundNumber?: number;
-  totalRoundsInLevel?: number;
+  totalRoundsInMode?: number;
   roundPhase?: RoundPhase;
 
   /** UTC ms — clients use this to render a synchronized countdown */

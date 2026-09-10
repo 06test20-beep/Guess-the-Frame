@@ -7,18 +7,19 @@
 
 import {
   SessionSnapshot,
-  SessionLevel,
+  SessionMode,
   ServerQuestion,
   ClientQuestion,
   SessionAsset,
-  LevelId,
+  ModeId,
   ONLINE_SESSION_MAX_IMAGE_BYTES,
 } from '../types/shared';
 
-// ── Input shape from host (mirrors frontend's StoredQuestion) ─────────────────
+// ─── Input shape from host (mirrors frontend's StoredQuestion) ─────────────────
 export interface HostStoredQuestion {
   id: string;
-  level: number;
+  modeId?: string;
+  level?: number; // V1 compat
   questionNumber: number;
   type: string;
   imageData?: string;      // base64 data URL — eye crop / frame image
@@ -32,8 +33,8 @@ export interface HostStoredQuestion {
 }
 
 export interface HostGamePayload {
-  selectedGames: LevelId[];
-  levels: Record<string, HostStoredQuestion[]>;
+  selectedModes: ModeId[];
+  modesData: Record<string, HostStoredQuestion[]>;
 }
 
 export interface SnapshotBuildResult {
@@ -44,27 +45,21 @@ export interface SnapshotBuildResult {
 /**
  * Build an immutable session snapshot from the host's uploaded data.
  * This is called once when the game starts and never updated again.
- *
- * Key responsibilities:
- * - Strip answer/alias data from ClientQuestion
- * - Deduplicate images (same base64 → same key)
- * - Enforce 50MB total image size limit
- * - Map imagePath references so clients can fetch them
  */
 export function buildSessionSnapshot(
   payload: HostGamePayload,
-  defaultQuestionsProvider: (levelId: LevelId) => HostStoredQuestion[]
+  defaultQuestionsProvider: (modeId: ModeId) => HostStoredQuestion[]
 ): SnapshotBuildResult {
   const assets = new Map<string, SessionAsset>();
   // Dedup: data URL → asset key
   const dataToKey = new Map<string, string>();
   let totalImageBytes = 0;
 
-  const levels: Partial<Record<LevelId, SessionLevel>> = {};
+  const modes: Partial<Record<ModeId, SessionMode>> = {};
 
-  for (const levelId of payload.selectedGames) {
+  for (const modeId of payload.selectedModes) {
     const rawQuestions: HostStoredQuestion[] =
-      payload.levels[levelId.toString()] ?? defaultQuestionsProvider(levelId);
+      payload.modesData[modeId.toString()] ?? defaultQuestionsProvider(modeId);
 
     const serverQuestions: ServerQuestion[] = [];
     const clientQuestions: ClientQuestion[] = [];
@@ -77,7 +72,8 @@ export function buildSessionSnapshot(
       // ── Server-secret record ──────────────────────────────────────────────
       const serverQ: ServerQuestion = {
         id: q.id,
-        level: levelId,
+        level: q.level as any,
+        modeId: modeId,
         questionNumber: q.questionNumber,
         type: q.type as ServerQuestion['type'],
         answer: q.answer,
@@ -89,7 +85,8 @@ export function buildSessionSnapshot(
       // ── Client-visible record (NO answer, NO aliases, NO year) ───────────
       const clientQ: ClientQuestion = {
         id: q.id,
-        level: levelId,
+        level: q.level as any,
+        modeId: modeId,
         questionNumber: q.questionNumber,
         type: q.type as ClientQuestion['type'],
         dialogue: q.dialogue,
@@ -142,22 +139,23 @@ export function buildSessionSnapshot(
       clientQuestions.push(clientQ);
     }
 
-    levels[levelId] = {
-      levelId,
+    modes[modeId] = {
+      modeId,
       serverQuestions,
       clientQuestions,
+      modeDefinition: {}, // TODO: pass mode definition from frontend if needed, currently empty object
     };
   }
 
   const snapshot: SessionSnapshot = {
     createdAt: Date.now(),
-    selectedGames: payload.selectedGames,
-    levels: levels as Record<LevelId, SessionLevel>,
+    selectedModes: payload.selectedModes,
+    modes: modes as Record<ModeId, SessionMode>,
     totalImageBytes,
   };
 
   console.log(
-    `[Snapshot] Built session: ${payload.selectedGames.length} games, ` +
+    `[Snapshot] Built session: ${payload.selectedModes.length} modes, ` +
     `${assets.size} unique images, ${(totalImageBytes / 1024 / 1024).toFixed(2)} MB`
   );
 

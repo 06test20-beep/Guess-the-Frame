@@ -1,17 +1,18 @@
 import React from 'react';
 import { Gavel } from 'lucide-react';
 import useGameStore from '../store/gameStore';
-import { LEVELS, AVATARS } from '../constants/game';
-import { getQuestionsForLevel } from '../utils/questionStorage';
+import { AVATARS } from '../constants/game';
+import { getQuestionsForMode } from '../utils/questionStorage';
+import { getModeById } from '../utils/modeRegistry';
 
 export default function AppHeader() {
-  const { phase, currentLevel, currentRound, currentJudgeId, players } = useGameStore();
+  const { phase, currentModeId, currentRound, currentJudgeId, players } = useGameStore();
 
   const showHeader = ['gameplay','answer-reveal','scoring'].includes(phase);
   if (!showHeader) return null;
 
-  const level     = LEVELS[currentLevel];
-  const questions = getQuestionsForLevel(currentLevel);
+  const mode      = getModeById(currentModeId);
+  const questions = getQuestionsForMode(currentModeId);
   const judge     = players.find(p => p.id === currentJudgeId);
   const judgeAvatar = judge ? AVATARS.find(a => a.id === judge.avatarId) : null;
 
@@ -25,8 +26,8 @@ export default function AppHeader() {
       {/* Centre: level + round */}
       <div className="app-header__center">
         <div className="app-header__level-badge">
-          <span>{level?.icon}</span>
-          <span>{level?.title}</span>
+          <span>{mode?.icon}</span>
+          <span>{mode?.name}</span>
         </div>
         <div className="app-header__round-badge">
           Round {currentRound} / {questions.length}

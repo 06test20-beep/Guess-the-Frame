@@ -8,8 +8,9 @@ import type {
   LevelId,
   FinalScore,
   ActivityFeedItem,
-} from '../types/online';
-import { loadStoredLevel, getDefaultStoredQuestions } from '../utils/questionStorage';
+  ModeId,
+} from '../types';
+import { getQuestionsForMode } from '../utils/questionStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -56,9 +57,11 @@ interface OnlineGameState {
   firstCorrectTimeMs: number | null;
   currentClientQuestion: ClientQuestion | null;
   revealedAnswer: string | null;
-  currentLevelId: LevelId | null;
+  currentModeId: ModeId | null;
+  currentLevelId: LevelId | null; // V1 compat
+  currentModeIndex: number | null;
   currentRoundNumber: number | null;
-  totalRoundsInLevel: number | null;
+  totalRoundsInMode: number | null;
 
   // Feedback
   myLastGuessResult: GuessResult | null;
@@ -100,9 +103,11 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
   firstCorrectTimeMs: null,
   currentClientQuestion: null,
   revealedAnswer: null,
+  currentModeId: null,
   currentLevelId: null,
+  currentModeIndex: null,
   currentRoundNumber: null,
-  totalRoundsInLevel: null,
+  totalRoundsInMode: null,
 
   myLastGuessResult: null,
   activityFeed: [],
@@ -152,9 +157,11 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
         firstCorrectTimeMs: data.firstCorrectTimeMs ?? null,
         currentClientQuestion: data.currentClientQuestion ?? null,
         revealedAnswer: data.revealedAnswer ?? null,
+        currentModeId: data.currentModeId ?? null,
         currentLevelId: data.currentLevelId ?? null,
+        currentModeIndex: data.currentModeIndex ?? null,
         currentRoundNumber: data.currentRoundNumber ?? null,
-        totalRoundsInLevel: data.totalRoundsInLevel ?? null,
+        totalRoundsInMode: data.totalRoundsInMode ?? null,
         resolvedImageUrl,
         error: null,
       });
@@ -170,9 +177,11 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
         roundPhase: 'active',
         roundEndTimeMs: data.roundEndTimeMs ?? null,
         firstCorrectTimeMs: null,
+        currentModeId: data.modeId ?? null,
         currentLevelId: data.levelId ?? null,
+        currentModeIndex: data.modeIndex ?? null,
         currentRoundNumber: data.roundIndex + 1,
-        totalRoundsInLevel: data.totalRounds ?? null,
+        totalRoundsInMode: data.totalRounds ?? null,
         activityFeed: [],
         resolvedImageUrl: null,
         resolvedFullImageUrl: null,
@@ -406,9 +415,11 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
       firstCorrectTimeMs: null,
       currentClientQuestion: null,
       revealedAnswer: null,
+      currentModeId: null,
       currentLevelId: null,
+      currentModeIndex: null,
       currentRoundNumber: null,
-      totalRoundsInLevel: null,
+      totalRoundsInMode: null,
       myLastGuessResult: null,
       activityFeed: [],
       finalScores: [],

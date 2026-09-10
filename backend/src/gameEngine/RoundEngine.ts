@@ -20,10 +20,10 @@ import {
   ONLINE_ROUND_DURATION_MS,
   ONLINE_FIRST_CORRECT_WINDOW_MS,
   ONLINE_GUESS_COOLDOWN_MS,
-  LevelId,
+  ModeId,
   EVENTS,
 } from '../types/shared';
-import { SessionSnapshot, SessionLevel } from '../types/shared';
+import { SessionSnapshot, SessionMode } from '../types/shared';
 import { checkGuess } from './AnswerMatcher';
 
 interface RoundRecord {
@@ -43,7 +43,7 @@ export class RoundEngine {
   private sessionAssets: Map<string, { key: string; mimeType: string; data: string }>;
 
   // Progression
-  private levelIndex = 0;        // index into snapshot.selectedGames
+  private modeIndex = 0;        // index into snapshot.selectedModes
   private roundIndex = 0;        // index within current level's questions
   private roundPhase: RoundPhase = 'intro';
 
@@ -81,9 +81,9 @@ export class RoundEngine {
   // ── Public API called by GameRoom ─────────────────────────────────────────
 
   start() {
-    this.levelIndex = 0;
+    this.modeIndex = 0;
     this.roundIndex = 0;
-    this.beginLevel();
+    this.beginMode();
   }
 
   handleGuess(playerId: string, guess: string) {
@@ -177,8 +177,8 @@ export class RoundEngine {
 
   // ── Private: Level / Round Flow ───────────────────────────────────────────
 
-  private beginLevel() {
-    const levelId = this.currentLevelId();
+  private beginMode() {
+    const levelId = this.currentModeId();
     if (!levelId) { this.endGame(); return; }
 
     this.roundIndex = 0;
@@ -206,10 +206,10 @@ export class RoundEngine {
     this.io.to(this.roomCode).emit(EVENTS.ROUND_START, {
       clientQuestion: clientQ,
       roundEndTimeMs,
-      levelIndex: this.levelIndex,
+      modeIndex: this.modeIndex,
       roundIndex: this.roundIndex,
-      levelId: this.currentLevelId(),
-      totalRounds: this.currentLevel()?.clientQuestions.length ?? 0,
+      modeId: this.currentModeId(),
+      totalRounds: this.currentMode()?.clientQuestions.length ?? 0,
     });
 
     // Authoritative timer
@@ -308,7 +308,7 @@ export class RoundEngine {
   }
 
   private advanceRound() {
-    const level = this.currentLevel();
+    const level = this.currentMode();
     if (!level) return;
 
     const totalRounds = level.clientQuestions.length;
@@ -316,15 +316,15 @@ export class RoundEngine {
     if (this.roundIndex + 1 >= totalRounds) {
       // Level complete
       this.io.to(this.roomCode).emit(EVENTS.LEVEL_END, {
-        levelId: this.currentLevelId(),
+        modeId: this.currentModeId(),
         scores: this.getPlayerScores(),
       });
 
-      this.levelIndex++;
-      if (this.levelIndex >= this.snapshot.selectedGames.length) {
+      this.modeIndex++;
+      if (this.modeIndex >= this.snapshot.selectedModes.length) {
         setTimeout(() => this.endGame(), 3000);
       } else {
-        setTimeout(() => this.beginLevel(), 4000);
+        setTimeout(() => this.beginMode(), 4000);
       }
     } else {
       this.roundIndex++;
@@ -385,21 +385,21 @@ export class RoundEngine {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private currentLevelId(): LevelId | undefined {
-    return this.snapshot.selectedGames[this.levelIndex];
+  private currentModeId(): ModeId | undefined {
+    return this.snapshot.selectedModes[this.modeIndex];
   }
 
-  private currentLevel(): SessionLevel | undefined {
-    const id = this.currentLevelId();
-    return id ? this.snapshot.levels[id] : undefined;
+  private currentMode(): SessionMode | undefined {
+    const id = this.currentModeId();
+    return id ? this.snapshot.modes[id] : undefined;
   }
 
   private currentServerQuestion(): ServerQuestion | undefined {
-    return this.currentLevel()?.serverQuestions[this.roundIndex];
+    return this.currentMode()?.serverQuestions[this.roundIndex];
   }
 
   private currentClientQuestion(): ClientQuestion | undefined {
-    return this.currentLevel()?.clientQuestions[this.roundIndex];
+    return this.currentMode()?.clientQuestions[this.roundIndex];
   }
 
   private adjustScore(playerId: string, delta: number) {
@@ -455,10 +455,10 @@ export class RoundEngine {
       hostId: this.hostId,
       players: this.players,
       phase: 'playing',
-      currentLevelId: this.currentLevelId(),
-      currentLevelIndex: this.levelIndex,
+      currentModeId: this.currentModeId(),
+      currentModeIndex: this.modeIndex,
       currentRoundNumber: this.roundIndex + 1,
-      totalRoundsInLevel: this.currentLevel()?.clientQuestions.length ?? 0,
+      totalRoundsInMode: this.currentMode()?.clientQuestions.length ?? 0,
       roundPhase: this.roundPhase,
       roundEndTimeMs: this.roundPhase === 'active' ? roundEndTimeMs : undefined,
       firstCorrectTimeMs,

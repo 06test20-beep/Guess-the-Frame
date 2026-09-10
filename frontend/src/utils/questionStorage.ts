@@ -1,24 +1,37 @@
-import type { Question, LevelId, QuestionType } from '../types';
+import type { Question, LevelId, QuestionType, ModeId, GameMode } from '../types';
 import DEFAULT_QUESTIONS from '../data/questions';
+import { LEVEL_ID_TO_MODE_ID, MODE_ID_TO_LEVEL_ID } from '../constants/game';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Question Storage — localStorage persistence layer
+//  Question Storage — localStorage persistence layer (V2)
 //
-//  Key rules (per spec):
-//  • localStorage is the admin/custom layer; never touched by game reset.
-//  • getQuestionsForLevel() is the SINGLE entry point for all question data.
-//  • Default questions.ts is always the fallback; never overwritten.
+//  V2 storage key format:  gtf_mode_data_<modeId>
+//  V1 storage key format:  gtf_questions_level_<number>  (read-only fallback)
+//
+//  Key rules:
+//  • getQuestionsForMode() is the SINGLE V2 entry point for all question data.
+//  • getQuestionsForLevel() is kept as a V1 compat wrapper.
+//  • V1 keys are read as a fallback if no V2 data exists yet.
+//  • V1 keys are NEVER deleted by this layer — migration is non-destructive.
 //  • Images are compressed to JPEG before base64 encoding to conserve storage.
+//
+//  NOTE: modeRegistry.ts depends on this file. To avoid circular imports,
+//  this file does NOT import modeRegistry. Instead, callers that need both
+//  pass registry data in as arguments (exportAllAsJSON, importFromJSON).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = (level: LevelId) => `gtf_questions_level_${level}`;
-const ALL_LEVELS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+// ─── Storage key helpers ─────────────────────────────────────────────────────
 
-// ── Types ────────────────────────────────────────────────────────────────────
+const V2_KEY = (modeId: ModeId) => `gtf_mode_data_${modeId}`;
+const V1_KEY = (level: LevelId) => `gtf_questions_level_${level}`;
+const GTF_REGISTRY_KEY = 'gtf_mode_registry';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface StoredQuestion {
   id: string;
-  level: LevelId;
+  level: LevelId;       // V1 compat — kept for existing exports
+  modeId?: ModeId;      // V2 — preferred reference
   questionNumber: number;
   type: QuestionType;
   /** base64 data URL — overrides imagePath at runtime when present (eye crop / frame image) */
@@ -33,13 +46,8 @@ export interface StoredQuestion {
   year?: number;
 }
 
-// ── Image compression ────────────────────────────────────────────────────────
+// ─── Image compression ────────────────────────────────────────────────────────
 
-/**
- * Compress an image File to a JPEG base64 data URL via Canvas.
- * Images wider than maxWidth are scaled down proportionally.
- * This reduces localStorage usage significantly for large photos.
- */
 export function compressImage(
   file: File,
   maxWidth  = 1280,
@@ -74,52 +82,101 @@ export function compressImage(
   });
 }
 
-// ── Write ────────────────────────────────────────────────────────────────────
+// ─── V2 Write ─────────────────────────────────────────────────────────────────
 
-export function saveLevel(level: LevelId, questions: StoredQuestion[]): void {
+export function saveModeQuestions(modeId: ModeId, questions: StoredQuestion[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY(level), JSON.stringify(questions));
+    localStorage.setItem(V2_KEY(modeId), JSON.stringify(questions));
   } catch (e) {
     console.error('[GTF Admin] localStorage write failed:', e);
     alert(
       'Storage quota exceeded. Try removing some images, or use the Export button ' +
-      'to back up your data and then reset a level to free space.',
+      'to back up your data and then reset a mode to free space.',
     );
   }
 }
 
-export function clearLevel(level: LevelId): void {
-  localStorage.removeItem(STORAGE_KEY(level));
+export function clearModeQuestions(modeId: ModeId): void {
+  localStorage.removeItem(V2_KEY(modeId));
 }
 
-// ── Read ─────────────────────────────────────────────────────────────────────
+/** True if this mode has been customized via the Admin Panel (V2 data). */
+export function modeHasCustomData(modeId: ModeId): boolean {
+  return localStorage.getItem(V2_KEY(modeId)) !== null;
+}
 
-export function loadStoredLevel(level: LevelId): StoredQuestion[] | null {
-  const raw = localStorage.getItem(STORAGE_KEY(level));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as StoredQuestion[];
-  } catch {
-    return null;
+// ─── V2 Read ──────────────────────────────────────────────────────────────────
+
+export function loadStoredMode(modeId: ModeId): StoredQuestion[] | null {
+  // Try V2 key first
+  const raw2 = localStorage.getItem(V2_KEY(modeId));
+  if (raw2) {
+    try { return JSON.parse(raw2) as StoredQuestion[]; } catch { /* fall through */ }
+  }
+
+  // Fall back to V1 key (for built-in modes with a legacyLevelId mapping)
+  const levelId = MODE_ID_TO_LEVEL_ID[modeId];
+  if (levelId !== undefined) {
+    const raw1 = localStorage.getItem(V1_KEY(levelId as LevelId));
+    if (raw1) {
+      try {
+        const parsed = JSON.parse(raw1) as StoredQuestion[];
+        // Opportunistically migrate: write V2 key if read succeeds
+        saveModeQuestions(modeId, parsed);
+        return parsed;
+      } catch { /* fall through */ }
+    }
+  }
+
+  return null;
+}
+
+// ─── V1 compat shims (backed by V2 storage) ──────────────────────────────────
+
+/** @deprecated Use saveModeQuestions() instead. Kept for backward compat. */
+export function saveLevel(level: LevelId, questions: StoredQuestion[]): void {
+  const modeId = LEVEL_ID_TO_MODE_ID[level];
+  if (modeId) {
+    saveModeQuestions(modeId, questions);
+  } else {
+    try { localStorage.setItem(V1_KEY(level), JSON.stringify(questions)); }
+    catch (e) { console.error('[GTF] Legacy saveLevel failed:', e); }
   }
 }
 
-/** True if this level has been customised via the Admin Panel. */
-export function levelHasCustomData(level: LevelId): boolean {
-  return localStorage.getItem(STORAGE_KEY(level)) !== null;
+/** @deprecated Use clearModeQuestions() instead. */
+export function clearLevel(level: LevelId): void {
+  const modeId = LEVEL_ID_TO_MODE_ID[level];
+  if (modeId) clearModeQuestions(modeId);
+  else localStorage.removeItem(V1_KEY(level));
 }
 
-// ── Conversion helpers ───────────────────────────────────────────────────────
+/** @deprecated Use loadStoredMode() instead. */
+export function loadStoredLevel(level: LevelId): StoredQuestion[] | null {
+  const modeId = LEVEL_ID_TO_MODE_ID[level];
+  if (modeId) return loadStoredMode(modeId);
+  const raw = localStorage.getItem(V1_KEY(level));
+  if (!raw) return null;
+  try { return JSON.parse(raw) as StoredQuestion[]; } catch { return null; }
+}
 
-function storedToQuestion(sq: StoredQuestion): Question {
+/** @deprecated Use modeHasCustomData() instead. */
+export function levelHasCustomData(level: LevelId): boolean {
+  const modeId = LEVEL_ID_TO_MODE_ID[level];
+  if (modeId) return modeHasCustomData(modeId);
+  return localStorage.getItem(V1_KEY(level)) !== null;
+}
+
+// ─── Conversion helpers ───────────────────────────────────────────────────────
+
+function storedToQuestion(sq: StoredQuestion, modeId?: ModeId): Question {
   return {
     id:             sq.id,
     level:          sq.level,
+    modeId:         sq.modeId ?? modeId ?? LEVEL_ID_TO_MODE_ID[sq.level] ?? String(sq.level),
     questionNumber: sq.questionNumber,
     type:           sq.type,
-    // imageData (base64) takes priority over imagePath for the question (crop) image
     imagePath:      sq.imageData ?? sq.imagePath,
-    // fullImageData is the full-face reveal image (eye questions only)
     fullImagePath:  sq.fullImageData,
     dialogue:       sq.dialogue,
     hint:           sq.hint,
@@ -128,21 +185,19 @@ function storedToQuestion(sq: StoredQuestion): Question {
   };
 }
 
-/**
- * Convert default Question records into StoredQuestion shape for the Admin Panel.
- * imageData is left undefined so the game still reads from /public/assets/.
- */
 export function getDefaultStoredQuestions(level: LevelId): StoredQuestion[] {
+  const modeId = LEVEL_ID_TO_MODE_ID[level] ?? String(level);
   return DEFAULT_QUESTIONS
     .filter(q => q.level === level)
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .map(q => ({
       id:             q.id,
       level:          q.level,
+      modeId,
       questionNumber: q.questionNumber,
       type:           q.type,
       imagePath:      q.imagePath,
-      imageData:      undefined,
+      imageData:      undefined as string | undefined,
       dialogue:       q.dialogue,
       hint:           q.hint,
       answer:         q.answer,
@@ -150,82 +205,186 @@ export function getDefaultStoredQuestions(level: LevelId): StoredQuestion[] {
     }));
 }
 
-// ── Central question accessor (used by the GAME, not just admin) ─────────────
+// ─── Central question accessors ───────────────────────────────────────────────
 
 /**
- * THE single source of truth for questions during gameplay.
- *
- * Priority:
- *   1. Admin-saved questions from localStorage (custom images + answers).
- *   2. Default questions from questions.ts (original fallback).
+ * V2: Get questions for a given ModeId.
+ * Priority: V2 admin data → V1 admin data → built-in defaults.
+ */
+export function getQuestionsForMode(modeId: ModeId): Question[] {
+  const stored = loadStoredMode(modeId);
+  if (stored && stored.length > 0) {
+    return stored
+      .sort((a, b) => a.questionNumber - b.questionNumber)
+      .map(sq => storedToQuestion(sq, modeId));
+  }
+
+  // Built-in fallback via legacy level ID
+  const levelId = MODE_ID_TO_LEVEL_ID[modeId];
+  if (levelId !== undefined) {
+    return DEFAULT_QUESTIONS
+      .filter(q => q.level === levelId)
+      .sort((a, b) => a.questionNumber - b.questionNumber)
+      .map(q => ({ ...q, modeId }));
+  }
+
+  return [];
+}
+
+/**
+ * V1 compat: Get questions by numeric LevelId.
+ * Delegates to getQuestionsForMode() via the legacy mapping.
  */
 export function getQuestionsForLevel(level: LevelId): Question[] {
+  const modeId = LEVEL_ID_TO_MODE_ID[level];
+  if (modeId) return getQuestionsForMode(modeId);
+
+  // Unmapped level: direct V1 read
   const stored = loadStoredLevel(level);
   if (stored && stored.length > 0) {
     return stored
       .sort((a, b) => a.questionNumber - b.questionNumber)
-      .map(storedToQuestion);
+      .map(sq => storedToQuestion(sq));
   }
-  // Fall through to built-in defaults
   return DEFAULT_QUESTIONS
     .filter(q => q.level === level)
-    .sort((a, b) => a.questionNumber - b.questionNumber);
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .map(q => ({ ...q, modeId: String(level) }));
 }
 
-// ── Export ───────────────────────────────────────────────────────────────────
+// ─── V2 Export ────────────────────────────────────────────────────────────────
 
 /**
- * Download all question data (custom + defaults where no custom exists) as JSON.
- * The exported file can be re-imported later via importFromJSON().
+ * V2 Export: Downloads the full dynamic mode system as JSON.
+ * Accepts the registry directly to avoid circular imports.
  */
-export function exportAllAsJSON(): void {
-  const payload: Record<string, StoredQuestion[]> = {};
-  ALL_LEVELS.forEach(lvl => {
-    const stored = loadStoredLevel(lvl);
-    const isDialogue = lvl === 5 || lvl === 7 || lvl === 8;
-    payload[`level_${lvl}`] = stored ?? (isDialogue ? getDefaultStoredQuestions(lvl) : []);
-  });
+export function exportAllAsJSON(registry: GameMode[]): void {
+  const modeData: Record<string, StoredQuestion[]> = {};
+
+  for (const mode of registry) {
+    const stored = loadStoredMode(mode.id);
+    if (stored && stored.length > 0) {
+      modeData[mode.id] = stored;
+    }
+  }
+
+  const payload = {
+    _version: 2,
+    _exportedAt: new Date().toISOString(),
+    registry,
+    modeData,
+  };
+
   const blob     = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url      = URL.createObjectURL(blob);
   const anchor   = document.createElement('a');
   anchor.href    = url;
-  anchor.download = `guess-the-frame-questions-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = `guess-the-frame-v2-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-// ── Import ───────────────────────────────────────────────────────────────────
+// ─── V2 Import ────────────────────────────────────────────────────────────────
+
+export type ImportResult =
+  | { ok: true; message: string; modesImported: number; isV1: boolean; newRegistry?: GameMode[] }
+  | { ok: false; error: string };
 
 /**
- * Parse and store question data from a previously exported JSON file.
- * Only levels present in the JSON are updated; others are left untouched.
- * Returns an array of level IDs that were successfully imported.
+ * V2 Import: Parse and restore a previously exported JSON file.
+ * Supports both V2 format and V1 format (backward compat).
+ * Does NOT call modeRegistry.ts directly — returns the new registry for the
+ * caller (AdminPage) to apply via modeRegistry.saveRegistry().
  */
-export function importFromJSON(
-  raw: string,
-): { ok: true; levels: LevelId[] } | { ok: false; error: string } {
+export function importFromJSON(raw: string): ImportResult {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const imported: LevelId[] = [];
 
-    ALL_LEVELS.forEach(lvl => {
-      const key  = `level_${lvl}`;
-      const data = parsed[key];
-      if (!Array.isArray(data) || data.length === 0) return;
-      // Basic shape validation
-      const valid = (data as StoredQuestion[]).every(
-        q => typeof q.id === 'string' && typeof q.answer === 'string',
-      );
-      if (!valid) return;
-      saveLevel(lvl, data as StoredQuestion[]);
-      imported.push(lvl);
-    });
-
-    if (imported.length === 0) {
-      return { ok: false, error: 'No valid level data found in the JSON file.' };
+    if (parsed._version === 2) {
+      return importV2(parsed);
     }
-    return { ok: true, levels: imported };
+
+    const isV1Shape = Object.keys(parsed).some(k => /^level_\d+$/.test(k));
+    if (isV1Shape) {
+      return importV1(parsed);
+    }
+
+    return { ok: false, error: 'Unrecognized JSON format. Expected a Guess The Frame export file.' };
   } catch {
     return { ok: false, error: 'Invalid JSON file. Please use an exported file from this app.' };
   }
+}
+
+function importV2(payload: Record<string, unknown>): ImportResult {
+  let newRegistry: GameMode[] | undefined;
+  let modesImported = 0;
+
+  if (Array.isArray(payload.registry)) {
+    const modes = payload.registry as GameMode[];
+    if (modes.every(m => typeof m.id === 'string' && typeof m.name === 'string' && typeof m.templateId === 'string')) {
+      newRegistry = modes;
+      modesImported = modes.length;
+    }
+  }
+
+  if (payload.modeData && typeof payload.modeData === 'object') {
+    const modeData = payload.modeData as Record<string, StoredQuestion[]>;
+    for (const [modeId, questions] of Object.entries(modeData)) {
+      if (!Array.isArray(questions) || questions.length === 0) continue;
+      const valid = questions.every(q => typeof q.id === 'string' && typeof q.answer === 'string');
+      if (!valid) continue;
+      saveModeQuestions(modeId, questions);
+    }
+  }
+
+  if (modesImported === 0 && !newRegistry) {
+    return { ok: false, error: 'V2 JSON contained no valid registry data.' };
+  }
+
+  // Also write the registry to localStorage directly so it persists
+  if (newRegistry) {
+    try { localStorage.setItem(GTF_REGISTRY_KEY, JSON.stringify(newRegistry)); } catch { /* ignore */ }
+  }
+
+  return {
+    ok: true,
+    message: `Imported ${modesImported} mode(s) from V2 backup.`,
+    modesImported,
+    isV1: false,
+    newRegistry,
+  };
+}
+
+function importV1(parsed: Record<string, unknown>): ImportResult {
+  const ALL_LEVELS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  let modesImported = 0;
+
+  ALL_LEVELS.forEach(lvl => {
+    const key  = `level_${lvl}`;
+    const data = parsed[key];
+    if (!Array.isArray(data) || data.length === 0) return;
+    const valid = (data as StoredQuestion[]).every(
+      q => typeof q.id === 'string' && typeof q.answer === 'string',
+    );
+    if (!valid) return;
+
+    const modeId = LEVEL_ID_TO_MODE_ID[lvl];
+    if (modeId) {
+      saveModeQuestions(modeId, data as StoredQuestion[]);
+    } else {
+      try { localStorage.setItem(V1_KEY(lvl), JSON.stringify(data)); } catch { /* ignore */ }
+    }
+    modesImported++;
+  });
+
+  if (modesImported === 0) {
+    return { ok: false, error: 'No valid level data found in the V1 JSON file.' };
+  }
+
+  return {
+    ok: true,
+    message: `Imported ${modesImported} level(s) from V1 backup (mapped to V2 modes).`,
+    modesImported,
+    isV1: true,
+  };
 }

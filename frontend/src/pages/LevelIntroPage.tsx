@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import useGameStore from '../store/gameStore';
-import { LEVELS } from '../constants/game';
-import { getQuestionsForLevel } from '../utils/questionStorage';
+import { getModeById } from '../utils/modeRegistry';
+import { getQuestionsForMode } from '../utils/questionStorage';
 import SoundToggle from '../components/SoundToggle';
 
 export default function LevelIntroPage() {
-  const { currentLevel, selectJudge, setPhase, selectedGames, currentSelectedGameIndex } = useGameStore();
-  const level = LEVELS[currentLevel];
-  const levelQuestions = getQuestionsForLevel(currentLevel);
+  const { currentModeId, selectJudge, setPhase, selectedModes, currentSelectedGameIndex } = useGameStore();
+  const mode = getModeById(currentModeId);
+  const modeQuestions = getQuestionsForMode(currentModeId);
 
   return (
     <div className="page-full">
@@ -15,27 +15,27 @@ export default function LevelIntroPage() {
       <div className="landing-bg__orb landing-bg__orb--2" style={{ opacity: 0.2 }} />
 
       <div className="level-intro-card anim-fade">
-        {/* Level icon */}
-        <div className="level-intro-icon" style={{ background: level.iconBg }}>
-          {level.icon}
+        {/* Mode icon */}
+        <div className="level-intro-icon" style={{ background: mode?.iconBg }}>
+          {mode?.icon}
         </div>
 
         {/* Title */}
-        <h1 className="level-intro-title">{level.title}</h1>
-        <p className="level-intro-subtitle">{level.subtitle}</p>
+        <h1 className="level-intro-title">{mode?.name}</h1>
+        <p className="level-intro-subtitle">{mode?.subtitle}</p>
 
         {/* Round badge */}
         <div className="level-intro-rounds">
-          <span>{levelQuestions.length}</span> ROUNDS
+          <span>{modeQuestions.length}</span> ROUNDS
         </div>
 
         <div className="level-intro-label">GET READY</div>
 
         {/* Level progress dots */}
         <div className="level-intro-dots">
-          {selectedGames.map((gameId, i) => (
+          {selectedModes.map((modeId, i) => (
             <div
-              key={`${gameId}-${i}`}
+              key={`${modeId}-${i}`}
               className={[
                 'level-dot',
                 i === currentSelectedGameIndex ? 'level-dot--active' : '',
