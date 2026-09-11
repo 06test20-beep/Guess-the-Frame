@@ -125,7 +125,7 @@ export default function JudgeSelectionPage() {
               id="judge-start-btn"
               className="btn-primary"
               style={{ marginTop: 12, fontSize:'0.9rem' }}
-              onClick={startRound}
+              onClick={() => startRound()}
             >
               🎬 Let's Go!
             </motion.button>

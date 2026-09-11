@@ -200,7 +200,10 @@ export class RoundEngine {
     this.playerGuards.clear();
 
     const clientQ = this.currentClientQuestion();
-    const roundEndTimeMs = Date.now() + ONLINE_ROUND_DURATION_MS;
+    const modeId = this.snapshot.selectedModes[this.modeIndex];
+    const modeTimerSec = this.snapshot.modes[modeId]?.modeDefinition?.timerSeconds;
+    const durationMs = (modeTimerSec ? modeTimerSec * 1000 : ONLINE_ROUND_DURATION_MS);
+    const roundEndTimeMs = Date.now() + durationMs;
 
     // Emit round start with player-safe question data only
     this.io.to(this.roomCode).emit(EVENTS.ROUND_START, {
@@ -213,7 +216,7 @@ export class RoundEngine {
     });
 
     // Authoritative timer
-    this.roundTimer = setTimeout(() => this.endRound(), ONLINE_ROUND_DURATION_MS);
+    this.roundTimer = setTimeout(() => this.endRound(), durationMs);
   }
 
   private handleCorrectGuess(playerId: string, answerTimeMs: number) {
@@ -233,8 +236,12 @@ export class RoundEngine {
     if (isFirstCorrect) {
       // For the first correct answer, compute from round start
       // roundEndTimeMs is not stored in engine directly, so we estimate:
-      const timeLeft = ONLINE_ROUND_DURATION_MS - (answerTimeMs % ONLINE_ROUND_DURATION_MS);
-      speedBonus = Math.round((timeLeft / ONLINE_ROUND_DURATION_MS) * ONLINE_SPEED_BONUS_MAX);
+      const modeId = this.snapshot.selectedModes[this.modeIndex];
+      const modeTimerSec = this.snapshot.modes[modeId]?.modeDefinition?.timerSeconds;
+      const durationMs = (modeTimerSec ? modeTimerSec * 1000 : ONLINE_ROUND_DURATION_MS);
+
+      const timeLeft = durationMs - (answerTimeMs % durationMs);
+      speedBonus = Math.round((timeLeft / durationMs) * ONLINE_SPEED_BONUS_MAX);
     }
     // Subsequent correct answers during 5s window get a fixed (smaller) base
     const basePoints = isFirstCorrect ? ONLINE_BASE_POINTS : Math.round(ONLINE_BASE_POINTS * 0.6);
@@ -448,7 +455,11 @@ export class RoundEngine {
 
   private broadcastRoomState(firstCorrectTimeMs?: number) {
     const clientQ = this.currentClientQuestion();
-    const roundEndTimeMs = Date.now() + ONLINE_ROUND_DURATION_MS;
+    const modeId = this.snapshot.selectedModes[this.modeIndex];
+    const modeTimerSec = this.snapshot.modes[modeId]?.modeDefinition?.timerSeconds;
+    const durationMs = (modeTimerSec ? modeTimerSec * 1000 : ONLINE_ROUND_DURATION_MS);
+
+    const roundEndTimeMs = Date.now() + durationMs;
 
     this.io.to(this.roomCode).emit('room_state_update', {
       code: this.roomCode,

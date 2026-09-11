@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
+import type { LevelId, ModeId, GameMode } from '../types';
 import type {
   OnlinePlayer,
   RoomState,
   ClientQuestion,
   RoundPhase,
-  LevelId,
   FinalScore,
   ActivityFeedItem,
-  ModeId,
-} from '../types';
+} from '../types/online';
 import { getQuestionsForMode } from '../utils/questionStorage';
+import { getImage } from '../utils/indexedDB';
+import { isIdbKey } from '../utils/migration';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -80,7 +81,7 @@ interface OnlineGameState {
   createRoom: (player: { name: string; avatarId: string }) => Promise<void>;
   joinRoom: (roomCode: string, player: { name: string; avatarId: string }) => Promise<void>;
   toggleReady: () => void;
-  startGame: (selectedGames: LevelId[]) => void;
+  startGame: (selectedModes: ModeId[]) => void;
   kickPlayer: (targetId: string) => void;
   submitGuess: (guess: string) => void;
   requestImage: (imageKey: string) => void;
@@ -342,26 +343,85 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
   },
 
   // ── startGame ─────────────────────────────────────────────────────────
-  startGame: (selectedGames: LevelId[]) => {
+  startGame: async (selectedModes: ModeId[]) => {
     const { socket } = get();
     if (!socket) return;
 
-    // Build the payload: for each selected level, send the host's custom questions
+    // Build the payload: for each selected mode, send the host's custom questions
     // (which include custom imageData from the Admin Panel) with a fallback to defaults.
-    // loadStoredLevel returns null if no custom data exists for a level.
-    const levels: Record<string, any[]> = {};
-    for (const levelId of selectedGames) {
-      const custom = loadStoredLevel(levelId);
-      levels[levelId.toString()] = custom && custom.length > 0
-        ? custom
-        : getDefaultStoredQuestions(levelId);
+    // getQuestionsForMode handles both fallback and loading custom V2 data.
+    const modesData: Record<string, any[]> = {};
+    const idbPromises: Promise<void>[] = [];
+    const resolvedImages = new Map<string, string>();
+
+    for (const modeId of selectedModes) {
+      // Deep copy to avoid mutating the store or local storage state
+      modesData[modeId] = JSON.parse(JSON.stringify(getQuestionsForMode(modeId)));
+
+      for (const q of modesData[modeId]) {
+        if (q.imageData && isIdbKey(q.imageData)) {
+          const key = q.imageData;
+          if (!resolvedImages.has(key)) {
+            resolvedImages.set(key, ''); // placeholder to prevent duplicate requests
+            idbPromises.push(getImage(key).then(data => { if (data) resolvedImages.set(key, data); }));
+          }
+        }
+        if (q.fullImageData && isIdbKey(q.fullImageData)) {
+          const key = q.fullImageData;
+          if (!resolvedImages.has(key)) {
+            resolvedImages.set(key, '');
+            idbPromises.push(getImage(key).then(data => { if (data) resolvedImages.set(key, data); }));
+          }
+        }
+      }
+    }
+
+    await Promise.all(idbPromises);
+
+    const MAX_SINGLE_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
+    const MAX_TOTAL_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+    let totalBytes = 0;
+
+    // Replace idb keys with base64 data and enforce limits
+    for (const modeId of selectedModes) {
+      for (const q of modesData[modeId]) {
+        if (q.imageData && isIdbKey(q.imageData)) {
+          const base64 = resolvedImages.get(q.imageData) || undefined;
+          if (base64) {
+            const bytes = Math.ceil((base64.length * 3) / 4);
+            if (bytes > MAX_SINGLE_IMAGE_BYTES) {
+              set({ error: `Image for question ${q.questionNumber} is too large (${(bytes/1024/1024).toFixed(1)}MB). Max 2MB.` });
+              return;
+            }
+            totalBytes += bytes;
+          }
+          q.imageData = base64;
+        }
+        if (q.fullImageData && isIdbKey(q.fullImageData)) {
+          const base64 = resolvedImages.get(q.fullImageData) || undefined;
+          if (base64) {
+             const bytes = Math.ceil((base64.length * 3) / 4);
+             if (bytes > MAX_SINGLE_IMAGE_BYTES) {
+               set({ error: `Full image for question ${q.questionNumber} is too large (${(bytes/1024/1024).toFixed(1)}MB). Max 2MB.` });
+               return;
+             }
+             totalBytes += bytes;
+          }
+          q.fullImageData = base64;
+        }
+      }
+    }
+
+    if (totalBytes > MAX_TOTAL_IMAGE_BYTES) {
+      set({ error: `Total session size (${(totalBytes/1024/1024).toFixed(1)}MB) exceeds the 10MB limit. Please select fewer modes or smaller images.` });
+      return;
     }
 
     socket.emit(
       'game_action',
       {
         type: 'START_GAME',
-        payload: { selectedGames, levels },
+        payload: { selectedModes, modesData },
       },
       (res: any) => {
         if (res?.error) {

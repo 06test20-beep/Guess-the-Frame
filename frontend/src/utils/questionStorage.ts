@@ -1,6 +1,7 @@
 import type { Question, LevelId, QuestionType, ModeId, GameMode } from '../types';
 import DEFAULT_QUESTIONS from '../data/questions';
 import { LEVEL_ID_TO_MODE_ID, MODE_ID_TO_LEVEL_ID } from '../constants/game';
+import { cleanupUnusedImages } from './indexedDB';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Question Storage — localStorage persistence layer (V2)
@@ -87,6 +88,8 @@ export function compressImage(
 export function saveModeQuestions(modeId: ModeId, questions: StoredQuestion[]): void {
   try {
     localStorage.setItem(V2_KEY(modeId), JSON.stringify(questions));
+    // Fire and forget cleanup
+    cleanupUnusedImages().catch(e => console.error('[GTF] Cleanup failed:', e));
   } catch (e) {
     console.error('[GTF Admin] localStorage write failed:', e);
     alert(
@@ -98,6 +101,26 @@ export function saveModeQuestions(modeId: ModeId, questions: StoredQuestion[]): 
 
 export function clearModeQuestions(modeId: ModeId): void {
   localStorage.removeItem(V2_KEY(modeId));
+  cleanupUnusedImages().catch(e => console.error('[GTF] Cleanup failed:', e));
+}
+
+/**
+ * Deep copy questions from a source mode to a target mode.
+ * Assigns new internal IDs and target modeId to fully decouple them.
+ */
+export function duplicateModeQuestions(sourceId: ModeId, targetId: ModeId): void {
+  // We use loadStoredMode because it handles the fallback to V1 or defaults.
+  const sourceQuestions = loadStoredMode(sourceId);
+  if (!sourceQuestions || sourceQuestions.length === 0) return;
+
+  const duplicated = sourceQuestions.map(sq => ({
+    ...sq,
+    id: `m_${targetId}_q${String(sq.questionNumber).padStart(2, '0')}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+    modeId: targetId,
+    level: 1 as LevelId // Dummy level to satisfy types
+  }));
+
+  saveModeQuestions(targetId, duplicated);
 }
 
 /** True if this mode has been customized via the Admin Panel (V2 data). */
@@ -256,15 +279,33 @@ export function getQuestionsForLevel(level: LevelId): Question[] {
 
 /**
  * V2 Export: Downloads the full dynamic mode system as JSON.
+ * Reconstructs Base64 image data from IndexedDB before exporting.
  * Accepts the registry directly to avoid circular imports.
  */
-export function exportAllAsJSON(registry: GameMode[]): void {
+export async function exportAllAsJSON(registry: GameMode[]): Promise<void> {
   const modeData: Record<string, StoredQuestion[]> = {};
 
   for (const mode of registry) {
     const stored = loadStoredMode(mode.id);
     if (stored && stored.length > 0) {
       modeData[mode.id] = stored;
+    }
+  }
+
+  // Reconstruct images from IndexedDB
+  const { getImage } = await import('./indexedDB');
+  const { isIdbKey } = await import('./migration');
+  
+  for (const questions of Object.values(modeData)) {
+    for (const q of questions) {
+      if (q.imageData && isIdbKey(q.imageData)) {
+        const base64 = await getImage(q.imageData);
+        if (base64) q.imageData = base64;
+      }
+      if (q.fullImageData && isIdbKey(q.fullImageData)) {
+        const base64 = await getImage(q.fullImageData);
+        if (base64) q.fullImageData = base64;
+      }
     }
   }
 
@@ -296,17 +337,17 @@ export type ImportResult =
  * Does NOT call modeRegistry.ts directly — returns the new registry for the
  * caller (AdminPage) to apply via modeRegistry.saveRegistry().
  */
-export function importFromJSON(raw: string): ImportResult {
+export async function importFromJSON(raw: string): Promise<ImportResult> {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
 
     if (parsed._version === 2) {
-      return importV2(parsed);
+      return await importV2(parsed);
     }
 
     const isV1Shape = Object.keys(parsed).some(k => /^level_\d+$/.test(k));
     if (isV1Shape) {
-      return importV1(parsed);
+      return await importV1(parsed);
     }
 
     return { ok: false, error: 'Unrecognized JSON format. Expected a Guess The Frame export file.' };
@@ -315,7 +356,7 @@ export function importFromJSON(raw: string): ImportResult {
   }
 }
 
-function importV2(payload: Record<string, unknown>): ImportResult {
+async function importV2(payload: Record<string, unknown>): Promise<ImportResult> {
   let newRegistry: GameMode[] | undefined;
   let modesImported = 0;
 
@@ -327,12 +368,30 @@ function importV2(payload: Record<string, unknown>): ImportResult {
     }
   }
 
+  const { saveImage } = await import('./indexedDB');
+  const { generateImageKey, isBase64 } = await import('./migration');
+
   if (payload.modeData && typeof payload.modeData === 'object') {
     const modeData = payload.modeData as Record<string, StoredQuestion[]>;
     for (const [modeId, questions] of Object.entries(modeData)) {
       if (!Array.isArray(questions) || questions.length === 0) continue;
       const valid = questions.every(q => typeof q.id === 'string' && typeof q.answer === 'string');
       if (!valid) continue;
+
+      // Extract base64 images and save to IndexedDB
+      for (const q of questions) {
+        if (q.imageData && isBase64(q.imageData)) {
+          const key = generateImageKey();
+          await saveImage(key, q.imageData);
+          q.imageData = key;
+        }
+        if (q.fullImageData && isBase64(q.fullImageData)) {
+          const key = generateImageKey();
+          await saveImage(key, q.fullImageData);
+          q.fullImageData = key;
+        }
+      }
+
       saveModeQuestions(modeId, questions);
     }
   }
@@ -355,27 +414,44 @@ function importV2(payload: Record<string, unknown>): ImportResult {
   };
 }
 
-function importV1(parsed: Record<string, unknown>): ImportResult {
+async function importV1(parsed: Record<string, unknown>): Promise<ImportResult> {
   const ALL_LEVELS: LevelId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   let modesImported = 0;
 
-  ALL_LEVELS.forEach(lvl => {
+  const { saveImage } = await import('./indexedDB');
+  const { generateImageKey, isBase64 } = await import('./migration');
+
+  for (const lvl of ALL_LEVELS) {
     const key  = `level_${lvl}`;
     const data = parsed[key];
-    if (!Array.isArray(data) || data.length === 0) return;
+    if (!Array.isArray(data) || data.length === 0) continue;
     const valid = (data as StoredQuestion[]).every(
       q => typeof q.id === 'string' && typeof q.answer === 'string',
     );
-    if (!valid) return;
+    if (!valid) continue;
+
+    const questions = data as StoredQuestion[];
+    for (const q of questions) {
+      if (q.imageData && isBase64(q.imageData)) {
+        const idbKey = generateImageKey();
+        await saveImage(idbKey, q.imageData);
+        q.imageData = idbKey;
+      }
+      if (q.fullImageData && isBase64(q.fullImageData)) {
+        const idbKey = generateImageKey();
+        await saveImage(idbKey, q.fullImageData);
+        q.fullImageData = idbKey;
+      }
+    }
 
     const modeId = LEVEL_ID_TO_MODE_ID[lvl];
     if (modeId) {
-      saveModeQuestions(modeId, data as StoredQuestion[]);
+      saveModeQuestions(modeId, questions);
     } else {
-      try { localStorage.setItem(V1_KEY(lvl), JSON.stringify(data)); } catch { /* ignore */ }
+      try { localStorage.setItem(V1_KEY(lvl), JSON.stringify(questions)); } catch { /* ignore */ }
     }
     modesImported++;
-  });
+  }
 
   if (modesImported === 0) {
     return { ok: false, error: 'No valid level data found in the V1 JSON file.' };

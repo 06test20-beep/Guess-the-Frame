@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import useGameStore from './store/gameStore';
 import { useOnlineGameStore } from './store/onlineGameStore';
+import { migrateLocalStorageToIndexedDB } from './utils/migration';
 
 // Pages
 import LandingPage        from './pages/LandingPage';
@@ -19,6 +20,18 @@ import OnlineGameplayPage from './pages/OnlineGameplayPage';
 export default function App() {
   const phase = useGameStore(s => s.phase);
   const setPhase = useGameStore(s => s.setPhase);
+  const [isMigrating, setIsMigrating] = useState(true);
+
+  // Run IndexedDB migration on startup
+  useEffect(() => {
+    migrateLocalStorageToIndexedDB()
+      .then(() => setIsMigrating(false))
+      .catch((err) => {
+        console.error('Migration failed:', err);
+        // Continue anyway so app isn't permanently bricked, but warn
+        setIsMigrating(false);
+      });
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -46,6 +59,16 @@ export default function App() {
     });
     return unsub;
   }, [setPhase]);
+
+  if (isMigrating) {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center bg-gray-900 text-white font-sans">
+        <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-8"></div>
+        <h2 className="text-2xl font-bold text-gray-200">Optimizing Storage...</h2>
+        <p className="text-gray-400 mt-2">Migrating media to IndexedDB</p>
+      </div>
+    );
+  }
 
   switch (phase) {
     case 'landing':

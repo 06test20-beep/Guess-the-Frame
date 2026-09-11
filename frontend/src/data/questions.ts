@@ -14,7 +14,7 @@ import type { Question } from '../types';
 //  Level 9: This and That      (frame)    → /assets/levels/level-1-bollywood/ (fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const QUESTIONS: Question[] = [
+const QUESTIONS: any[] = [
   // ── Level 1: Hollywood Frames ─────────────────────────────────────────────
   { id:'l1q01', level:1, questionNumber:1,  type:'frame', imagePath:'/assets/levels/level-2-hollywood/q01.jpg', answer:'2001: A Space Odyssey', year:1968 },
   { id:'l1q02', level:1, questionNumber:2,  type:'frame', imagePath:'/assets/levels/level-2-hollywood/q02.jpg', answer:'The Godfather',        year:1972 },
@@ -124,7 +124,7 @@ const QUESTIONS: Question[] = [
   { id:'l9q10', level:9, questionNumber:10, type:'frame', imagePath:'/assets/levels/level-2-hollywood/q04.jpg', answer:'Forrest Gump',               year:1994 },
 ];
 
-export default QUESTIONS;
+export default QUESTIONS as unknown as Question[];
 
 export function getQuestionsForLevel(level: number): Question[] {
   return QUESTIONS.filter(q => q.level === level).sort(

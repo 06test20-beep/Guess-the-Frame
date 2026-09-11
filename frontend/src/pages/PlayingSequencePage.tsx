@@ -279,7 +279,7 @@ export default function PlayingSequencePage() {
                         {mode.subtitle}
                       </div>
                       <button
-                        onClick={() => handleRemoveGame(modeId)}
+                        onClick={() => handleRemoveGame(modeId!)}
                         style={{
                           position: 'absolute', top: '12px', right: '12px',
                           background: 'rgba(0,0,0,0.2)', border: 'none', color: '#fff',

@@ -7,7 +7,7 @@ import { useSound } from '../hooks/useSound';
 import type { LevelId } from '../types';
 
 export default function OnlineLobbyPage() {
-  const { setPhase, selectedGames } = useGameStore();
+  const { setPhase, selectedModes } = useGameStore();
   const {
     roomCode, hostId, players, myPlayerId,
     toggleReady, startGame, kickPlayer, error, leaveRoom
@@ -19,9 +19,9 @@ export default function OnlineLobbyPage() {
   const allReady = connectedPlayers.length > 0 && connectedPlayers.every(p => p.isReady);
 
   const handleStart = () => {
-    if (!selectedGames.length) return;
+    if (!selectedModes.length) return;
     playStartGame();
-    startGame(selectedGames as LevelId[]);
+    startGame(selectedModes);
     setPhase('online-gameplay');
   };
 
@@ -125,9 +125,9 @@ export default function OnlineLobbyPage() {
             <div>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 1.5, color: 'var(--text-muted)', fontWeight: 800 }}>Game Sequence</div>
               <div style={{ fontWeight: 700, marginTop: 4 }}>
-                {selectedGames.length === 0
+                {selectedModes.length === 0
                   ? <span style={{ color: 'var(--text-muted)' }}>No games selected yet</span>
-                  : <span style={{ color: '#a78bfa' }}>{selectedGames.length} game{selectedGames.length > 1 ? 's' : ''} selected</span>
+                  : <span style={{ color: '#a78bfa' }}>{selectedModes.length} game{selectedModes.length > 1 ? 's' : ''} selected</span>
                 }
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function OnlineLobbyPage() {
               style={{ padding: '10px 24px', fontSize: '0.9rem', background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)' }}
               onClick={() => { playNavClick(); setPhase('playing-sequence'); }}
             >
-              {selectedGames.length > 0 ? '✏️ Edit Sequence' : '📋 Select Games'}
+              {selectedModes.length > 0 ? '✏️ Edit Sequence' : '📋 Select Games'}
             </button>
           </div>
         )}
@@ -160,12 +160,12 @@ export default function OnlineLobbyPage() {
               <button
                 className="btn-primary"
                 style={{ padding: '12px 28px', fontSize: '1rem' }}
-                disabled={!allReady || connectedPlayers.length < 2 || selectedGames.length === 0}
+                disabled={!allReady || connectedPlayers.length < 2 || selectedModes.length === 0}
                 onClick={handleStart}
                 title={
                   !allReady ? 'Wait for all players to ready up' :
                   connectedPlayers.length < 2 ? 'Need at least 2 players' :
-                  selectedGames.length === 0 ? 'Select at least one game' : ''
+                  selectedModes.length === 0 ? 'Select at least one game' : ''
                 }
               >
                 🚀 Start Game
@@ -179,7 +179,7 @@ export default function OnlineLobbyPage() {
           <div style={{ textAlign: 'right', marginTop: 10, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
             {!allReady && '⚠ Waiting for all players to ready up · '}
             {connectedPlayers.length < 2 && '⚠ Need at least 2 players · '}
-            {selectedGames.length === 0 && '⚠ No game sequence selected'}
+            {selectedModes.length === 0 && '⚠ No game sequence selected'}
           </div>
         )}
       </div>
