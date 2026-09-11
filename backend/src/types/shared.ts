@@ -5,7 +5,7 @@
 //  No imports from either framework — purely data contracts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type QuestionType = 'frame' | 'eye' | 'dialogue';
+export type QuestionType = 'frame' | 'eye' | 'dialogue' | 'emoji';
 export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; // V1 compat
 export type ModeId = string;
 

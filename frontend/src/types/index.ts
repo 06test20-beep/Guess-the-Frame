@@ -16,7 +16,7 @@ export interface Player {
 }
 
 // ─── Questions ──────────────────────────────────────────────────────────────
-export type QuestionType = 'frame' | 'eye' | 'dialogue';
+export type QuestionType = 'frame' | 'eye' | 'dialogue' | 'emoji';
 
 /**
  * V1 legacy numeric level ID (still used in default questions.ts and

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Loader2, Eye, Film, Check, RotateCcw, Save, Plus, AlertTriangle, Settings, Upload, Download, ArrowLeft, Camera, X } from 'lucide-react';
+import { Trash2, Loader2, Eye, Film, Check, RotateCcw, Save, Plus, AlertTriangle, Settings, Upload, Download, ArrowLeft, Camera, X, Copy, Power, ListTree, Edit2, Trash, ChevronUp, ChevronDown, AlignJustify } from 'lucide-react';
 import useGameStore from '../store/gameStore';
 import type { ModeId, QuestionType, GameMode } from '../types';
 import {
@@ -9,10 +9,24 @@ import {
   importFromJSON,
   modeHasCustomData,
   compressImage,
+  duplicateModeQuestions,
   type StoredQuestion,
 } from '../utils/questionStorage';
-import { getRegistry, saveRegistry } from '../utils/modeRegistry';
+import { 
+  getRegistry, 
+  saveRegistry, 
+  createCustomMode, 
+  duplicateMode, 
+  deleteCustomMode, 
+  resetBuiltInMode, 
+  toggleModeEnabled, 
+  updateModeMetadata, 
+  reorderModes 
+} from '../utils/modeRegistry';
 import { getQuestionsForMode } from '../utils/questionStorage';
+import { saveImage } from '../utils/indexedDB';
+import { generateImageKey } from '../utils/migration';
+import AsyncImage from '../components/AsyncImage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Admin Panel — Question Content Manager (V2)
@@ -51,7 +65,9 @@ function QuestionCard({
     setCompressing(true);
     try {
       const base64 = await compressImage(file, 1280, 0.72);
-      onChange({ ...q, imageData: base64 });
+      const imageKey = generateImageKey();
+      await saveImage(imageKey, base64);
+      onChange({ ...q, imageData: imageKey });
     } catch (e) {
       console.error('Image compression failed:', e);
       alert('Could not process that image. Try a different file.');
@@ -73,7 +89,9 @@ function QuestionCard({
     setCompressingFull(true);
     try {
       const base64 = await compressImage(file, 1280, 0.72);
-      onChange({ ...q, fullImageData: base64 });
+      const imageKey = generateImageKey();
+      await saveImage(imageKey, base64);
+      onChange({ ...q, fullImageData: imageKey });
     } catch (e) {
       console.error('Full image compression failed:', e);
       alert('Could not process that image. Try a different file.');
@@ -101,7 +119,7 @@ function QuestionCard({
           title="Click to change question type"
           style={{ cursor: 'pointer', border: '1px solid var(--border-soft)', borderRadius: '8px', padding: '2px 10px', background: 'rgba(155,89,182,0.08)', fontWeight: 700, fontSize: '0.75rem' }}
           onClick={() => {
-            const types: QuestionType[] = ['frame', 'eye', 'dialogue'];
+            const types: QuestionType[] = ['frame', 'eye', 'dialogue', 'emoji'];
             const next = types[(types.indexOf(q.type) + 1) % types.length];
             onChange({ ...q, type: next });
           }}
@@ -141,7 +159,7 @@ function QuestionCard({
               </div>
             ) : imagePreview ? (
               <div className="admin-img-preview-wrap">
-                <img
+                <AsyncImage
                   src={imagePreview}
                   alt="question preview"
                   className="admin-img-preview"
@@ -261,14 +279,29 @@ function QuestionCard({
         </div>
       )}
 
+      {/* Emoji text */}
+      {q.type === 'emoji' && (
+        <div className="admin-field-group">
+          <label className="admin-label">Emoji Sequence</label>
+          <textarea
+            className="admin-input admin-textarea"
+            placeholder="💡 🎥 🎬"
+            style={{ fontSize: '1.5rem', letterSpacing: '4px', textAlign: 'center' }}
+            value={q.dialogue ?? ''}
+            rows={2}
+            onChange={e => onChange({ ...q, dialogue: e.target.value })}
+          />
+        </div>
+      )}
+
       {/* Hint */}
-      {(q.type === 'dialogue' || q.type === 'eye') && (
+      {(q.type === 'dialogue' || q.type === 'eye' || q.type === 'emoji') && (
         <div className="admin-field-group">
           <label className="admin-label">Hint (optional)</label>
           <input
             className="admin-input"
             type="text"
-            placeholder={q.type === 'dialogue' ? 'e.g. Classic Bollywood comedy' : 'e.g. Bollywood actor'}
+            placeholder={q.type === 'dialogue' ? 'e.g. Classic Bollywood comedy' : q.type === 'emoji' ? 'e.g. Action movie' : 'e.g. Bollywood actor'}
             value={q.hint ?? ''}
             onChange={e => onChange({ ...q, hint: e.target.value })}
           />
@@ -307,8 +340,8 @@ function QuestionCard({
   );
 }
 
-/* ── Mode panel ──────────────────────────────────────────────────────────── */
-function ModePanel({ mode, onUpdate }: { mode: GameMode, onUpdate: () => void }) {
+/* ── Mode Panel (Questions for active mode) ──────────────────────────────── */
+function ModePanel({ mode, onUpdate, onEdit, onDuplicate }: { mode: GameMode; onUpdate: () => void; onEdit: () => void; onDuplicate: () => void; }) {
   const [questions,  setQuestions]  = useState<StoredQuestion[]>([]);
   const [dirty,      setDirty]      = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -354,7 +387,7 @@ function ModePanel({ mode, onUpdate }: { mode: GameMode, onUpdate: () => void })
 
   const addQuestion = () => {
     // Determine type from template
-    const type: QuestionType = (mode.templateId === 'eye' || mode.templateId === 'dialogue' || mode.templateId === 'frame')
+    const type: QuestionType = (mode.templateId === 'eye' || mode.templateId === 'dialogue' || mode.templateId === 'frame' || mode.templateId === 'emoji')
       ? mode.templateId as QuestionType
       : 'frame';
     setQuestions(prev => [...prev, makeNewQuestion(mode.id, prev.length + 1, type)]);
@@ -402,6 +435,20 @@ function ModePanel({ mode, onUpdate }: { mode: GameMode, onUpdate: () => void })
         <div style={{ flex: 1 }} />
 
         <div className="admin-level-actions">
+          <button
+            className="btn-outline"
+            onClick={onEdit}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Settings size={16} /> Edit
+          </button>
+          <button
+            className="btn-outline"
+            onClick={onDuplicate}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Copy size={16} /> Duplicate
+          </button>
           <button
             className="btn-outline"
             onClick={handleReset}
@@ -459,6 +506,163 @@ function ModePanel({ mode, onUpdate }: { mode: GameMode, onUpdate: () => void })
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Modals
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ManageModesModal({ modes, onClose, onUpdate }: { modes: GameMode[], onClose: () => void, onUpdate: () => void }) {
+  const handleMove = (index: number, dir: -1 | 1) => {
+    if (index + dir < 0 || index + dir >= modes.length) return;
+    const newOrder = [...modes.map(m => m.id)];
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[index + dir];
+    newOrder[index + dir] = temp;
+    reorderModes(newOrder);
+    onUpdate();
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: 600, width: '100%', padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><ListTree size={24} /> Manage Modes</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} color="var(--text-muted)" /></button>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '60vh', overflowY: 'auto' }}>
+          {modes.map((m, i) => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--surface)', borderRadius: 8, opacity: m.enabled ? 1 : 0.6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <button onClick={() => handleMove(i, -1)} disabled={i === 0} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><ChevronUp size={16} /></button>
+                <button onClick={() => handleMove(i, 1)} disabled={i === modes.length - 1} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><ChevronDown size={16} /></button>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: m.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{m.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 'bold' }}>{m.name} <span style={{ fontSize: '0.7em', padding: '2px 6px', background: 'rgba(0,0,0,0.1)', borderRadius: 4, marginLeft: 4 }}>{m.source}</span></div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.subtitle}</div>
+              </div>
+              
+              <button 
+                className="btn-outline" 
+                style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', gap: 6 }}
+                onClick={() => { toggleModeEnabled(m.id); onUpdate(); }}
+              >
+                <Power size={14} /> {m.enabled ? 'Disable' : 'Enable'}
+              </button>
+
+              {m.source === 'CUSTOM' ? (
+                <button 
+                  className="btn-outline" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.2)', display: 'flex', gap: 6 }}
+                  onClick={() => {
+                    if (confirm(`Delete custom mode "${m.name}"? This cannot be undone.`)) {
+                      deleteCustomMode(m.id);
+                      onUpdate();
+                    }
+                  }}
+                >
+                  <Trash size={14} /> Delete
+                </button>
+              ) : (
+                <button 
+                  className="btn-outline" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', gap: 6 }}
+                  onClick={() => {
+                    if (confirm(`Reset built-in mode "${m.name}" to defaults?`)) {
+                      resetBuiltInMode(m.id);
+                      onUpdate();
+                    }
+                  }}
+                >
+                  <RotateCcw size={14} /> Reset
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModeEditorModal({ 
+  mode, 
+  title, 
+  onSave, 
+  onClose 
+}: { 
+  mode?: GameMode; 
+  title: string; 
+  onSave: (data: any) => void; 
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(mode?.name || '');
+  const [subtitle, setSubtitle] = useState(mode?.subtitle || '');
+  const [icon, setIcon] = useState(mode?.icon || '🎮');
+  const [iconBg, setIconBg] = useState(mode?.iconBg || 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)');
+  const [timer, setTimer] = useState(mode?.timerSeconds || 30);
+  const [template, setTemplate] = useState(mode?.templateId || 'frame');
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: 500, width: '100%', padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} color="var(--text-muted)" /></button>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Mode Name</label>
+            <input type="text" className="join-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. My Custom Movie Quiz" />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Subtitle</label>
+            <input type="text" className="join-input" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="e.g. Rounds 1-10 — 10 questions" />
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Emoji Icon</label>
+              <input type="text" className="join-input" value={icon} onChange={e => setIcon(e.target.value)} placeholder="🎮" />
+            </div>
+            <div style={{ flex: 2 }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Icon Background (CSS)</label>
+              <input type="text" className="join-input" value={iconBg} onChange={e => setIconBg(e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Timer (seconds)</label>
+              <input type="number" className="join-input" value={timer} onChange={e => setTimer(Number(e.target.value))} min={5} max={300} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Gameplay Template</label>
+              <select className="join-input" value={template} onChange={e => setTemplate(e.target.value)} disabled={!!mode}>
+                <option value="frame">Frame (Single Image)</option>
+                <option value="eye">Eye (Crop → Full Reveal)</option>
+                <option value="dialogue">Dialogue (Text Quote)</option>
+                <option value="emoji">Emoji (Emoji Sequence)</option>
+                <option value="year">Release Year</option>
+              </select>
+            </div>
+          </div>
+          
+          <button 
+            className="btn-primary" 
+            style={{ padding: '12px', marginTop: 8 }}
+            onClick={() => {
+              if (!name.trim()) return alert("Name is required");
+              onSave({ name, subtitle, icon, iconBg, timerSeconds: timer, templateId: template });
+            }}
+          >
+            {mode ? "Save Changes" : "Create Mode"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Admin Page root ─────────────────────────────────────────────────────── */
 export default function AdminPage() {
   const setPhase      = useGameStore(s => s.setPhase);
@@ -468,6 +672,11 @@ export default function AdminPage() {
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const [importTick, setImportTick] = useState(0);
+
+  // Modals state
+  const [showManageModes, setShowManageModes] = useState(false);
+  const [showCreateMode, setShowCreateMode] = useState(false);
+  const [showEditMode, setShowEditMode] = useState(false);
 
   useEffect(() => {
     const registry = getRegistry();
@@ -481,9 +690,9 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const raw = reader.result as string;
-      const result = importFromJSON(raw);
+      const result = await importFromJSON(raw);
       if (result.ok) {
         setImportStatus(`✓ Imported ${result.modesImported} mode(s)`);
         if (result.newRegistry) {
@@ -500,8 +709,8 @@ export default function AdminPage() {
     e.target.value = '';
   };
 
-  const handleExport = () => {
-    exportAllAsJSON(getRegistry());
+  const handleExport = async () => {
+    await exportAllAsJSON(getRegistry());
   };
 
   const activeMode = modes.find(m => m.id === activeModeId) || modes[0];
@@ -510,7 +719,11 @@ export default function AdminPage() {
     <div className="admin-bg">
       {/* Top bar */}
       <header className="admin-topbar">
-        <div className="app-header__logo" style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+        <div 
+          className="app-header__logo" 
+          onClick={() => setPhase('landing')}
+          style={{ display: 'flex', alignItems: 'center', gap: 0, cursor: 'pointer' }}
+        >
           <span>Guess</span><span>the Frame</span>
           <span className="admin-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Settings size={14} /> Admin</span>
         </div>
@@ -591,7 +804,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Mode tabs */}
         <div className="admin-tabs" key={importTick}>
           {modes.map(mode => {
             const hasCustom = modeHasCustomData(mode.id);
@@ -599,22 +811,91 @@ export default function AdminPage() {
               <button
                 key={mode.id}
                 id={`admin-tab-mode-${mode.id}`}
-                className={`admin-tab ${activeMode?.id === mode.id ? 'admin-tab--active' : ''}`}
+                className={`admin-tab ${activeMode?.id === mode.id ? 'admin-tab--active' : ''} ${!mode.enabled ? 'admin-tab--disabled' : ''}`}
                 onClick={() => setActiveModeId(mode.id)}
+                style={{ opacity: mode.enabled ? 1 : 0.5 }}
               >
                 <span>{mode.icon}</span>
                 <span>{mode.name}</span>
+                {!mode.enabled && <Eye size={12} style={{ opacity: 0.5 }} />}
                 {hasCustom && <span className="admin-tab-dot" title="Has custom questions" />}
               </button>
             );
           })}
+          
+          <button
+            className="admin-tab"
+            style={{ borderStyle: 'dashed', color: 'var(--primary)', fontWeight: 600 }}
+            onClick={() => setShowCreateMode(true)}
+          >
+            <Plus size={16} /> New Mode
+          </button>
+          
+          <div style={{ flex: 1 }} />
+          
+          <button
+            className="admin-tab"
+            style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)' }}
+            onClick={() => setShowManageModes(true)}
+          >
+            <ListTree size={16} /> Manage Modes
+          </button>
         </div>
 
         {/* Active mode panel */}
         <div className="admin-panel-wrap">
-          {activeMode && <ModePanel key={`${activeMode.id}-${importTick}`} mode={activeMode} onUpdate={() => setImportTick(t => t + 1)} />}
+          {activeMode && (
+            <ModePanel 
+              key={`${activeMode.id}-${importTick}`} 
+              mode={activeMode} 
+              onUpdate={() => setImportTick(t => t + 1)} 
+              onEdit={() => setShowEditMode(true)}
+              onDuplicate={() => {
+                const newId = duplicateMode(activeMode.id);
+                if (newId) {
+                  duplicateModeQuestions(activeMode.id, newId);
+                  setImportTick(t => t + 1);
+                  setActiveModeId(newId);
+                }
+              }}
+            />
+          )}
         </div>
       </div>
+
+      {showManageModes && (
+        <ManageModesModal 
+          modes={modes} 
+          onClose={() => setShowManageModes(false)} 
+          onUpdate={() => setImportTick(t => t + 1)} 
+        />
+      )}
+
+      {showCreateMode && (
+        <ModeEditorModal
+          title="Create New Mode"
+          onClose={() => setShowCreateMode(false)}
+          onSave={(data) => {
+            const newId = createCustomMode({ ...data, description: data.subtitle, countdownLabel: 'GET READY!' });
+            setImportTick(t => t + 1);
+            setActiveModeId(newId);
+            setShowCreateMode(false);
+          }}
+        />
+      )}
+
+      {showEditMode && activeMode && (
+        <ModeEditorModal
+          mode={activeMode}
+          title={`Edit ${activeMode.name}`}
+          onClose={() => setShowEditMode(false)}
+          onSave={(data) => {
+            updateModeMetadata(activeMode.id, data);
+            setImportTick(t => t + 1);
+            setShowEditMode(false);
+          }}
+        />
+      )}
     </div>
   );
 }

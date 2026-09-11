@@ -3,8 +3,9 @@
 //  Keep in sync manually. No framework imports.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type QuestionType = 'frame' | 'eye' | 'dialogue';
+export type QuestionType = 'frame' | 'eye' | 'dialogue' | 'emoji';
 export type LevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type ModeId = string;
 
 /** Player-visible question data — contains NO secret answer info */
 export interface ClientQuestion {

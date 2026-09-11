@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Eye, Film, Keyboard, Undo2, Play, LogOut } from 'lucide-react';
 import useGameStore from '../store/gameStore';
 import { AVATARS, CORRECT_POINTS, WRONG_POINTS, JUDGE_BONUS } from '../constants/game';
-import { getQuestionsForLevel } from '../utils/questionStorage';
+import { getQuestionsForMode } from '../utils/questionStorage';
 import AppHeader from '../components/AppHeader';
 import Sidebar from '../components/Sidebar';
 import SoundToggle from '../components/SoundToggle';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useSound } from '../hooks/useSound';
+import AsyncImage from '../components/AsyncImage';
 
 /* ─── Answer Reveal overlay ──────────────────────────────────────────────── */
-function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsForLevel>[0] }) {
+function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsForMode>[0] }) {
   const { nextRound, phase } = useGameStore();
   const { playReveal } = useSound();
 
@@ -24,7 +25,7 @@ function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsFo
       <div className="answer-overlay" key={question.id}>
         <div className="eye-reveal-wrap">
           {revealImg && (
-            <img
+            <AsyncImage
               src={revealImg}
               alt="Full reveal"
               className="eye-reveal-photo"
@@ -59,7 +60,7 @@ function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsFo
 
 
 /* ─── Scoring overlay (Who Got It Right?) ────────────────────────────────── */
-function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestionsForLevel>[0] }) {
+function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestionsForMode>[0] }) {
   const { players, currentJudgeId, awardCorrect, awardWrong, awardJudgeBonus, nextRound, adjustScore } = useGameStore();
   const { playCorrect, playWrong } = useSound();
   const [selectedId,    setSelectedId]    = useState<string | null>(null);
@@ -155,6 +156,8 @@ function ScoringOverlay({ question }: { question: ReturnType<typeof getQuestions
   );
 }
 
+
+
 /* ─── Timer sound effect integration ────────────────────────────────────── */
 function TimerSounds() {
   const { timeRemaining, timerRunning } = useGameStore();
@@ -179,7 +182,7 @@ function TimerSounds() {
 }
 
 /* ─── Screen Reader Announcements ────────────────────────────────────────── */
-function ScreenReaderAnnouncer({ question }: { question: ReturnType<typeof getQuestionsForLevel>[0] }) {
+function ScreenReaderAnnouncer({ question }: { question: ReturnType<typeof getQuestionsForMode>[0] }) {
   const { phase, timeRemaining, timerRunning } = useGameStore();
   const [announcement, setAnnouncement] = useState('');
   const prevTime = useRef(timeRemaining);
@@ -209,10 +212,10 @@ function ScreenReaderAnnouncer({ question }: { question: ReturnType<typeof getQu
 /* ─── Main Gameplay Page ─────────────────────────────────────────────────── */
 export default function GameplayPage() {
   const { 
-    currentLevel, currentRound, phase, answerRevealed, lastScoreAction, 
+    currentModeId, currentRound, phase, answerRevealed, lastScoreAction, 
     undoLastScore, quitGame, imageRevealed, revealImage 
   } = useGameStore();
-  const questions = getQuestionsForLevel(currentLevel);
+  const questions = getQuestionsForMode(currentModeId);
   const question  = questions[currentRound - 1];
   const { playNavClick } = useSound();
 
@@ -256,7 +259,7 @@ export default function GameplayPage() {
           overflow: 'hidden', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           background: '#000', border: '4px solid rgba(255, 255, 255,0.1)'
         }}>
-          <img
+          <AsyncImage
             className={`gameplay-image ${(phase === 'answer-reveal' || phase === 'scoring') ? 'image-unblur' : ''}`}
             src={question.imagePath}
             alt="Guess the movie frame"
@@ -288,7 +291,7 @@ export default function GameplayPage() {
           </div>
           <p style={{ fontSize:'0.9rem', fontWeight:700 }}>
             Drop image in<br />
-            <code style={{ fontSize:'0.75rem' }}>public/assets/levels/level-{currentLevel}-*/q{String(currentRound).padStart(2,'0')}.jpg</code>
+            <code style={{ fontSize:'0.75rem' }}>public/assets/levels/level-{currentModeId}-*/q{String(currentRound).padStart(2,'0')}.jpg</code>
           </p>
         </div>
       );
@@ -317,6 +320,39 @@ export default function GameplayPage() {
               onClick={() => { playNavClick(); revealImage(); }}
             >
               <Eye size={28} /> Reveal Dialogue
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Emoji sequence
+    if (question.type === 'emoji') {
+      return (
+        <div className="gameplay-dialogue-card" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <div className="dialogue-bubble" style={{
+            filter: !imageRevealed ? 'blur(15px)' : 'blur(0)',
+            transform: !imageRevealed ? 'scale(0.95)' : 'scale(1)',
+            transition: 'filter 0.5s ease-out, transform 0.5s ease-out, opacity 0.5s',
+            opacity: !imageRevealed ? 0.5 : 1,
+            pointerEvents: !imageRevealed ? 'none' : 'auto',
+            background: 'none',
+            border: 'none',
+            boxShadow: 'none'
+          }}>
+            <div style={{ fontSize: '5rem', letterSpacing: '10px', textAlign: 'center', textShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+              {question.dialogue}
+            </div>
+            <span className="dialogue-bubble__hint" style={{ marginTop: '20px' }}>GUESS THE MOVIE / SHOW</span>
+          </div>
+
+          {!imageRevealed && (
+            <button 
+              className="btn-primary" 
+              style={{ position: 'absolute', zIndex: 10, fontSize: '1.5rem', padding: '16px 40px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '12px' }}
+              onClick={() => { playNavClick(); revealImage(); }}
+            >
+              <Eye size={28} /> Reveal Emojis
             </button>
           )}
         </div>

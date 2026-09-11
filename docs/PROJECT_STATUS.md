@@ -28,6 +28,7 @@
 - `frame`: Show an image, guess the movie.
 - `eye`: Show a cropped eye, guess the actor/character.
 - `dialogue`: Show text dialogue, guess the movie.
+- `emoji`: Show an emoji sequence (reads/writes to `dialogue` storage field for backward compatibility), rendered with large typography locally and online.
 
 ## Playing Sequence
 - Supported locally via `PlayingSequencePage.tsx`.
@@ -37,6 +38,7 @@
 - Accessible and persists via localStorage.
 - Supports JSON Import/Export.
 - Verified: Overrides hardcoded questions properly (Requires correct JSON schemas, e.g., `type: 'eye'` for Level 4).
+- Verified: Dedicated `emoji` template editor correctly handles Emoji sequences while maintaining data format.
 
 ## Multiplayer status
 

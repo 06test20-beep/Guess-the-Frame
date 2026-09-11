@@ -5,6 +5,7 @@ import { useOnlineGameStore } from '../store/onlineGameStore';
 import { AVATARS, LEVELS } from '../constants/game';
 import SoundToggle from '../components/SoundToggle';
 import { useSound } from '../hooks/useSound';
+import { getModeById } from '../utils/modeRegistry';
 import type { LevelId } from '../types';
 import type { ActivityFeedItem, FinalScore, ClientQuestion } from '../types/online';
 import { ONLINE_ROUND_DURATION_MS, ONLINE_FIRST_CORRECT_WINDOW_MS } from '../types/online';
@@ -151,6 +152,22 @@ function QuestionArea() {
     );
   }
 
+  if (type === 'emoji') {
+    return (
+      <div className="gameplay-dialogue-card" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+        <div className="dialogue-bubble" style={{
+          filter: 'none', opacity: 1, maxWidth: 680, width: '100%',
+          background: 'none', border: 'none', boxShadow: 'none'
+        }}>
+          <div style={{ fontSize: '4.5rem', letterSpacing: '10px', textAlign: 'center', textShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+            {dialogue}
+          </div>
+          {hint && <span className="dialogue-bubble__hint" style={{ marginTop: '20px' }}>{hint}</span>}
+        </div>
+      </div>
+    );
+  }
+
   // Eye question — during reveal show full-face image; during active show crop
   if (type === 'eye') {
     const displayUrl = revealed && resolvedFullImageUrl ? resolvedFullImageUrl : resolvedImageUrl;
@@ -210,7 +227,7 @@ function QuestionArea() {
       ) : (
         <div className="gameplay-image-placeholder">
           <div style={{ color: 'var(--primary)', opacity: 0.8 }}>
-            {type === 'eye' ? <EyeIcon size={80} strokeWidth={1.5} /> : <Film size={80} strokeWidth={1.5} />}
+            <Film size={80} strokeWidth={1.5} />
           </div>
           <p style={{ fontSize:'0.9rem', fontWeight:700 }}>Loading image...</p>
         </div>
@@ -396,23 +413,24 @@ function FinalResultsOverlay() {
 export default function OnlineGameplayPage() {
   const {
     roundPhase, roundEndTimeMs, firstCorrectTimeMs,
-    currentClientQuestion, currentLevelId, currentRoundNumber, totalRoundsInLevel,
+    currentClientQuestion, currentModeId, currentRoundNumber, totalRoundsInMode,
     activityFeed, roomState, players, myPlayerId, hostId,
     leaveRoom, revealedAnswer,
   } = useOnlineGameStore();
   const setPhase = useGameStore(s => s.setPhase);
   const { playNavClick } = useSound();
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   // Server-synchronized countdown
   const activeEndTime = roundPhase === 'first_correct' ? firstCorrectTimeMs : roundEndTimeMs;
   const isInWindow = roundPhase === 'first_correct';
   const { secondsLeft, pct } = useServerTimer(
     roundPhase === 'active' || roundPhase === 'first_correct' ? activeEndTime : null,
-    isInWindow ? true : null
+    isInWindow ? 5000 : undefined
   );
 
   const timerColor = pct > 0.5 ? 'var(--timer-green)' : pct > 0.25 ? 'var(--timer-yellow)' : 'var(--timer-red)';
-  const levelMeta = currentLevelId ? LEVELS[currentLevelId] : null;
+  const modeMeta = currentModeId ? getModeById(currentModeId) : null;
 
   if (roomState === 'results') return <FinalResultsOverlay />;
 
@@ -420,18 +438,22 @@ export default function OnlineGameplayPage() {
     <>
       <header className="app-header">
         {/* Logo */}
-        <div className="app-header__logo">
+        <div 
+          className="app-header__logo"
+          onClick={() => setShowLeaveModal(true)}
+          style={{ cursor: 'pointer' }}
+        >
           <span>Guess</span><span> the Frame</span>
         </div>
 
         {/* Centre: level + round + timer */}
         <div className="app-header__center">
           <div className="app-header__level-badge">
-            <span>{levelMeta?.icon ?? '🎬'}</span>
-            <span>{levelMeta?.title ?? 'Loading...'}</span>
+            <span>{modeMeta?.icon ?? '🎬'}</span>
+            <span>{modeMeta?.name ?? 'Loading...'}</span>
           </div>
           <div className="app-header__round-badge" style={{ position: 'relative' }}>
-            Round {currentRoundNumber} / {totalRoundsInLevel}
+            Round {currentRoundNumber} / {totalRoundsInMode}
           </div>
           {(roundPhase === 'active' || roundPhase === 'first_correct') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
@@ -518,6 +540,34 @@ export default function OnlineGameplayPage() {
           </div>
         </aside>
       </div>
+
+      {/* Leave Game Modal */}
+      {showLeaveModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+        }}>
+          <div style={{
+            background: 'var(--bg-main)', padding: '40px', borderRadius: '24px',
+            textAlign: 'center', minWidth: '320px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }}>
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '24px' }}>Leave Game?</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button className="btn-primary" onClick={() => setShowLeaveModal(false)}>
+                Stay
+              </button>
+              <button 
+                className="btn-ghost" 
+                onClick={() => { setShowLeaveModal(false); playNavClick(); leaveRoom(); setPhase('landing'); }}
+                style={{ color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <LogOut size={20} /> Exit to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
