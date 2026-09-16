@@ -27,6 +27,7 @@ import { getQuestionsForMode } from '../utils/questionStorage';
 import { saveImage } from '../utils/indexedDB';
 import { generateImageKey } from '../utils/migration';
 import AsyncImage from '../components/AsyncImage';
+import EyeCropModal from '../components/EyeCropModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Admin Panel — Question Content Manager (V2)
@@ -58,6 +59,7 @@ function QuestionCard({
   const [compressing,     setCompressing]     = useState(false);
   const [draggingFull,    setDraggingFull]    = useState(false);
   const [compressingFull, setCompressingFull] = useState(false);
+  const [cropModalFile,   setCropModalFile]   = useState<File | null>(null);
 
   // ── Crop image handler ──────────────────────────────────────────────────
   const handleImageFile = async (file: File) => {
@@ -83,18 +85,28 @@ function QuestionCard({
     if (file) handleImageFile(file);
   };
 
-  // ── Full image handler (eye questions only) ─────────────────────────────
-  const handleFullImageFile = async (file: File) => {
+  // ── Auto-Crop Full image handler (eye questions only) ─────────────────────────────
+  const handleFullImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) return;
+    setCropModalFile(file);
+  };
+
+  const handleCropSave = async (cropFile: File, fullFile: File) => {
     setCompressingFull(true);
+    setCropModalFile(null);
     try {
-      const base64 = await compressImage(file, 1280, 0.72);
-      const imageKey = generateImageKey();
-      await saveImage(imageKey, base64);
-      onChange({ ...q, fullImageData: imageKey });
+      const cropBase64 = await compressImage(cropFile, 1280, 0.72);
+      const cropKey = generateImageKey();
+      await saveImage(cropKey, cropBase64);
+
+      const fullBase64 = await compressImage(fullFile, 1280, 0.72);
+      const fullKey = generateImageKey();
+      await saveImage(fullKey, fullBase64);
+
+      onChange({ ...q, imageData: cropKey, fullImageData: fullKey });
     } catch (e) {
-      console.error('Full image compression failed:', e);
-      alert('Could not process that image. Try a different file.');
+      console.error('Auto-crop save failed:', e);
+      alert('Could not save the cropped image pair. Try again.');
     } finally {
       setCompressingFull(false);
     }
@@ -138,7 +150,7 @@ function QuestionCard({
         <>
           {q.type === 'eye' && (
             <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
-              👁 Eye Crop Image (shown during question)
+              👁 Manual Crop Override (Optional)
             </div>
           )}
           <div
@@ -201,11 +213,11 @@ function QuestionCard({
         </>
       )}
 
-      {/* ── Full image upload zone (eye questions ONLY) ─────────────────── */}
+      {/* ── Full image upload zone (Auto-Crop for eye questions ONLY) ─────────────────── */}
       {q.type === 'eye' && (
         <>
           <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#b06fe0', marginTop: 12, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
-            🖼 Full Image (shown after reveal)
+            🖼 Full Image (Auto-Crop Tool)
           </div>
           <div
             className={`admin-img-drop ${draggingFull ? 'admin-img-drop--over' : ''}`}
@@ -308,6 +320,14 @@ function QuestionCard({
         </div>
       )}
 
+      {cropModalFile && (
+        <EyeCropModal 
+          file={cropModalFile} 
+          onSave={handleCropSave}
+          onCancel={() => setCropModalFile(null)} 
+        />
+      )}
+
       {/* Answer */}
       <div className="admin-field-group">
         <label className="admin-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> Answer</label>
@@ -361,7 +381,7 @@ function ModePanel({ mode, onUpdate, onEdit, onDuplicate }: { mode: GameMode; on
         type: q.type,
         answer: q.answer,
         imagePath: q.imagePath,
-        fullImageData: q.fullImagePath,
+        fullImageData: q.fullImageData,
         dialogue: q.dialogue,
         hint: q.hint,
         year: q.year,

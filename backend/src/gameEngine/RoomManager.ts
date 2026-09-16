@@ -27,16 +27,40 @@ export class RoomManager {
   }
 
   handlePlayerConnect(socket: Socket, playerId: string) {
-    this.activeSockets.set(socket.id, { playerId });
+    // Check if this player was previously in a room (reconnection scenario)
+    const prevSocketId = this.playerSockets.get(playerId);
+    let roomCode: string | undefined;
+
+    if (prevSocketId) {
+      // Find the room this player was in from the old socket's data
+      const prevData = this.activeSockets.get(prevSocketId);
+      roomCode = prevData?.roomCode;
+
+      // Clean up the stale old socket entry
+      this.activeSockets.delete(prevSocketId);
+    }
+
+    this.activeSockets.set(socket.id, { playerId, roomCode });
     this.playerSockets.set(playerId, socket.id);
+
+    // Re-join the socket.io room with the new socket so broadcasts reach it
+    if (roomCode) {
+      const room = this.rooms.get(roomCode);
+      if (room) {
+        room.joinPlayer(playerId, null, socket);
+        console.log(`[RoomManager] Player ${playerId} reconnected to room ${roomCode}`);
+      }
+    }
   }
+
 
   handlePlayerDisconnect(socket: Socket) {
     const data = this.activeSockets.get(socket.id);
     if (!data) return;
 
     this.activeSockets.delete(socket.id);
-    this.playerSockets.delete(data.playerId);
+    // DO NOT delete this.playerSockets.get(data.playerId) here, 
+    // it must persist for handlePlayerConnect to restore the connection.
 
     if (data.roomCode) {
       const room = this.rooms.get(data.roomCode);

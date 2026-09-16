@@ -19,8 +19,10 @@ function AnswerReveal({ question }: { question: ReturnType<typeof getQuestionsFo
   useEffect(() => { playReveal(); }, []);
 
   if (question.type === 'eye') {
-    // Prefer the full-face image; fall back to the crop if none provided
-    const revealImg = question.fullImagePath ?? question.imagePath;
+    // Prefer the full-face image; fall back to the crop if none provided.
+    // fullImageData holds the idb:// key or base64 for custom images;
+    // fullImagePath holds the static public path for built-in images.
+    const revealImg = question.fullImageData ?? question.fullImagePath ?? question.imageData ?? question.imagePath;
     return (
       <div className="answer-overlay" key={question.id}>
         <div className="eye-reveal-wrap">
@@ -213,7 +215,7 @@ function ScreenReaderAnnouncer({ question }: { question: ReturnType<typeof getQu
 export default function GameplayPage() {
   const { 
     currentModeId, currentRound, phase, answerRevealed, lastScoreAction, 
-    undoLastScore, quitGame, imageRevealed, revealImage 
+    undoLastScore, quitGame, imageRevealed, revealImage, timerRunning
   } = useGameStore();
   const questions = getQuestionsForMode(currentModeId);
   const question  = questions[currentRound - 1];
@@ -252,7 +254,11 @@ export default function GameplayPage() {
   const renderContent = () => {
     // Frame / Eye — image
     if (question.type === 'frame' || question.type === 'eye') {
-      return question.imagePath ? (
+      // imageData holds the idb:// key or base64 for custom images;
+      // imagePath holds the static public path for built-in images.
+      // AsyncImage handles both transparently.
+      const imgSrc = question.imageData ?? question.imagePath;
+      return imgSrc ? (
         <div style={{ 
           position: 'relative', width: '100%', height: '100%', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -261,12 +267,15 @@ export default function GameplayPage() {
         }}>
           <AsyncImage
             className={`gameplay-image ${(phase === 'answer-reveal' || phase === 'scoring') ? 'image-unblur' : ''}`}
-            src={question.imagePath}
+            src={imgSrc}
             alt="Guess the movie frame"
             style={{ 
-              filter: !imageRevealed ? 'blur(25px)' : 'blur(0)',
-              transform: !imageRevealed ? 'scale(1.1)' : 'scale(1)',
-              transition: 'filter 0.5s ease-out, transform 0.5s ease-out'
+              filter: (!imageRevealed && question.type !== 'eye') ? 'blur(25px)' : 'blur(0)',
+              transform: (!imageRevealed && question.type !== 'eye') ? 'scale(1.1)' : 'scale(1)',
+              transition: 'filter 0.5s ease-out, transform 0.5s ease-out',
+              maxHeight: (!imageRevealed && question.type === 'eye') ? '50vh' : 'none',
+              maxWidth: (!imageRevealed && question.type === 'eye') ? '90%' : 'none',
+              objectFit: 'contain',
             }}
             onError={e => {
               const target = e.target as HTMLImageElement;
@@ -274,13 +283,22 @@ export default function GameplayPage() {
               target.parentElement!.classList.add('gameplay-image-placeholder');
             }}
           />
-          {!imageRevealed && (
+          {!imageRevealed && question.type !== 'eye' && (
             <button 
               className="btn-primary" 
               style={{ position: 'absolute', zIndex: 10, fontSize: '1.5rem', padding: '16px 40px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '12px' }}
               onClick={() => { playNavClick(); revealImage(); }}
             >
               <Eye size={28} /> Reveal Image
+            </button>
+          )}
+          {!timerRunning && question.type === 'eye' && phase === 'gameplay' && !answerRevealed && (
+            <button 
+              className="btn-primary" 
+              style={{ position: 'absolute', zIndex: 10, fontSize: '1.5rem', padding: '16px 40px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '12px' }}
+              onClick={() => { playNavClick(); useGameStore.getState().startRoundTimer(); }}
+            >
+              <Play size={28} /> Start Round
             </button>
           )}
         </div>

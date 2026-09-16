@@ -38,8 +38,14 @@ export interface Question {
   modeId: ModeId;    // V2: stable string identifier
   questionNumber: number;
   type: QuestionType;
-  imagePath?: string;        // for frame / eye questions (cropped eye during question)
-  fullImagePath?: string;    // for eye questions ONLY — full face image shown at answer reveal
+  /** Static public-asset path (e.g. /assets/levels/…/q01.jpg). Used by AsyncImage for local gameplay. */
+  imagePath?: string;
+  /** IndexedDB key (idb://…) or base64 data URL for a custom-uploaded crop image. */
+  imageData?: string;
+  /** eye questions ONLY — static public-asset path for the full-face reveal image. */
+  fullImagePath?: string;
+  /** eye questions ONLY — IndexedDB key (idb://…) or base64 data URL for the full-face reveal image. */
+  fullImageData?: string;
   dialogue?: string;         // for dialogue questions
   hint?: string;             // optional sub-hint shown in dialogue answer card
   answer: string;
@@ -156,6 +162,7 @@ export interface GameStore {
   startRound: (timerSeconds?: number) => void;
   enterGameplay: () => void;
   revealImage: () => void;
+  startRoundTimer: () => void;
   tickTimer: () => void;
   revealAnswer: () => void;
   goToScoring: () => void;

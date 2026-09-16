@@ -84,6 +84,7 @@ interface OnlineGameState {
   startGame: (selectedModes: ModeId[]) => void;
   kickPlayer: (targetId: string) => void;
   submitGuess: (guess: string) => void;
+  revealEarly: () => void;
   requestImage: (imageKey: string) => void;
   leaveRoom: () => void;
   clearError: () => void;
@@ -152,7 +153,7 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
         roomCode: data.code,
         hostId: data.hostId,
         players: data.players,
-        roomState: data.state,
+        roomState: data.phase,   // RoomState contract uses 'phase', not 'state'
         roundPhase: data.roundPhase ?? null,
         roundEndTimeMs: data.roundEndTimeMs ?? null,
         firstCorrectTimeMs: data.firstCorrectTimeMs ?? null,
@@ -170,6 +171,8 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
 
     // ── Round events ─────────────────────────────────────────────────────
     newSocket.on('round_start', (data: any) => {
+      console.log('TRACE [Frontend ROUND_START Received]');
+      console.log(`- received imageKey: ${data.clientQuestion?.imageKey}`);
       // New round — clear per-round state
       set({
         myLastGuessResult: null,
@@ -192,12 +195,17 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
       const q = data.clientQuestion as ClientQuestion | undefined;
       if (q?.imageKey) {
         if (q.imageKey.startsWith('path:')) {
+          console.log(`TRACE [Frontend] Resolving path: key -> ${q.imageKey.slice('path:'.length)}`);
           set({ resolvedImageUrl: q.imageKey.slice('path:'.length) });
         } else if (imageCache.has(q.imageKey)) {
+          console.log(`TRACE [Frontend] Resolving image cache key -> (found)`);
           set({ resolvedImageUrl: imageCache.get(q.imageKey)! });
         } else {
+          console.log(`TRACE [Frontend] Resolving img_ key -> emitting REQUEST_IMAGE`);
           newSocket.emit('game_action', { type: 'REQUEST_IMAGE', payload: q.imageKey }, () => {});
         }
+      } else {
+        console.log(`TRACE [Frontend] No imageKey present in clientQuestion`);
       }
 
       // Pre-fetch full image in background so reveal is instant
@@ -351,12 +359,21 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
     // (which include custom imageData from the Admin Panel) with a fallback to defaults.
     // getQuestionsForMode handles both fallback and loading custom V2 data.
     const modesData: Record<string, any[]> = {};
+    // Find all custom images referenced by the selected modes
+    const assets: Record<string, { mimeType: string; data: string }> = {};
     const idbPromises: Promise<void>[] = [];
     const resolvedImages = new Map<string, string>();
 
+    console.log('TRACE [Frontend emitting START_GAME]');
     for (const modeId of selectedModes) {
       // Deep copy to avoid mutating the store or local storage state
       modesData[modeId] = JSON.parse(JSON.stringify(getQuestionsForMode(modeId)));
+      const q = modesData[modeId][0];
+      
+      console.log(`- Mode: ${modeId}, Q1 ID: ${q?.id}, type: ${q?.type}`);
+      console.log(`- imageData present: ${!!q?.imageData}`);
+      console.log(`- imagePath present: ${!!q?.imagePath}, val: ${q?.imagePath}`);
+      console.log(`- is idb key? ${isIdbKey(q?.imageData ?? '')}`);
 
       for (const q of modesData[modeId]) {
         if (q.imageData && isIdbKey(q.imageData)) {
@@ -441,11 +458,20 @@ export const useOnlineGameStore = create<OnlineGameState>((set, get) => ({
   },
 
   // ── submitGuess ───────────────────────────────────────────────────────
-  submitGuess: (guess) => {
+  submitGuess: (guess: string) => {
     const { socket } = get();
-    if (socket) {
-      socket.emit('game_action', { type: 'SUBMIT_GUESS', payload: guess }, () => {});
-    }
+    if (!socket) return;
+    socket.emit('game_action', { type: 'SUBMIT_GUESS', payload: guess }, (res: any) => {
+      if (res?.error) console.error('Submit guess error:', res.error);
+    });
+  },
+
+  revealEarly: () => {
+    const { socket } = get();
+    if (!socket) return;
+    socket.emit('game_action', { type: 'REVEAL_EARLY' }, (res: any) => {
+      if (res?.error) console.error('Reveal early error:', res.error);
+    });
   },
 
   // ── requestImage ──────────────────────────────────────────────────────

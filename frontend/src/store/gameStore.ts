@@ -123,6 +123,12 @@ const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  startRoundTimer: () => {
+    set({
+      timerRunning: true,
+    });
+  },
+
   tickTimer: () => {
     const { timeRemaining, timerRunning } = get();
     if (!timerRunning) return;

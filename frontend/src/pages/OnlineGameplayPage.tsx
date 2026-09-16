@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Film, Eye as EyeIcon, LogOut } from 'lucide-react';
+import { Film, Eye as EyeIcon, LogOut, Search } from 'lucide-react';
 import useGameStore from '../store/gameStore';
 import { useOnlineGameStore } from '../store/onlineGameStore';
 import { AVATARS, LEVELS } from '../constants/game';
@@ -125,6 +125,8 @@ function QuestionArea() {
   const { currentClientQuestion, resolvedImageUrl, resolvedFullImageUrl, roundPhase, revealedAnswer } = useOnlineGameStore();
   const revealed = roundPhase === 'reveal';
 
+  console.log(`TRACE [QuestionArea rendered] resolvedImageUrl: ${resolvedImageUrl?.substring(0, 50)}..., QID: ${currentClientQuestion?.id}`);
+
   if (!currentClientQuestion) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '1.2rem', fontWeight: 700 }}>
@@ -188,9 +190,9 @@ function QuestionArea() {
               filter: 'blur(0)',
               transform: 'scale(1)',
               transition: 'opacity 0.5s ease-out',
+              maxHeight: !revealed ? '50vh' : 'none',
+              maxWidth: !revealed ? '90%' : 'none',
               objectFit: 'contain',
-              maxHeight: '100%',
-              width: 'auto',
             }}
           />
         ) : (
@@ -503,6 +505,23 @@ export default function OnlineGameplayPage() {
 
         {/* Right sidebar */}
         <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 20, background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(20px)' }}>
+          {/* Host Controls */}
+          {myPlayerId === hostId && (roundPhase === 'active' || roundPhase === 'first_correct') && (
+            <div className="sidebar-section" style={{ padding: '16px', background: 'rgba(255, 255, 255,0.5)', border: 'none' }}>
+              <div className="sidebar-section__title">
+                <span className="sidebar-section__title-dot" style={{ background: 'var(--pink)' }} />
+                Host Controls
+              </div>
+              <button
+                className="btn-primary"
+                style={{ width: '100%', marginTop: 10, fontSize: '0.82rem', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                onClick={() => useOnlineGameStore.getState().revealEarly()}
+              >
+                <Search size={16} /> Reveal Answer
+              </button>
+            </div>
+          )}
+
           {/* Live Feed */}
           <div className="sidebar-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', background: 'rgba(255, 255, 255,0.5)', border: 'none' }}>
             <div className="sidebar-section__title">

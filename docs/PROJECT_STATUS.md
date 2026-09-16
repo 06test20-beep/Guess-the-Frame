@@ -2,8 +2,8 @@
 
 ## Project identity
 - Current version: V2 (Online Multiplayer Integrated)
-- Current phase: V2 Testing / Polish
-- Last verified date: 2026-09-10
+- Current phase: V2 Verified & Completed
+- Last verified date: 2026-09-16
 
 ## Architecture
 - Frontend: React 19, Vite, Zustand, Tailwind CSS (via inline styles or custom CSS), Framer Motion
@@ -67,7 +67,9 @@
 - Multiple project reference prompts have been uploaded to `E:\Guess they frame\user-uploaded-data\`.
 
 ## Known bugs / Risks
-- Custom image uploads through the Admin Panel JSON must strictly match the `QuestionType` of the level (e.g., Level 4 must have `type: 'eye'` and `imageData`), otherwise it falls back to the default hardcoded data or breaks the UI.
+- Custom image uploads through the Admin Panel JSON must strictly match the `QuestionType` of the level.
+- Ensure the backend and frontend are kept in sync when deploying.
 
 ## Recommended Next Step
-- User tests the newly imported custom JSON for Guess The Eyes in the Admin Panel and runs a test match in Online Mode to verify the entire V2 multiplayer flow with custom questions.
+- Commit the finalized uncommitted working tree changes.
+- Push to origin and consider merging the `online-multiplayer` branch into `main` to finalize the V2 release.

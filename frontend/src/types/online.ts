@@ -43,7 +43,7 @@ export interface RoomState {
   code: string;
   hostId: string | null;
   players: OnlinePlayer[];
-  state: 'lobby' | 'playing' | 'results';
+  phase: 'lobby' | 'playing' | 'results';
 
   // Playing phase fields
   currentModeId?: ModeId;

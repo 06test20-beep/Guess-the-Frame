@@ -175,6 +175,11 @@ export class RoundEngine {
     this.clearTimers();
   }
 
+  forceReveal() {
+    if (this.roundPhase !== 'active' && this.roundPhase !== 'first_correct') return;
+    this.endRound();
+  }
+
   // ── Private: Level / Round Flow ───────────────────────────────────────────
 
   private beginMode() {
@@ -205,6 +210,11 @@ export class RoundEngine {
     const durationMs = (modeTimerSec ? modeTimerSec * 1000 : ONLINE_ROUND_DURATION_MS);
     const roundEndTimeMs = Date.now() + durationMs;
 
+    console.log('TRACE [Backend ROUND_START emitting]');
+    console.log(`- QID: ${clientQ?.id}`);
+    console.log(`- client imageKey: ${clientQ?.imageKey}`);
+    console.log(`- roundPhase: ${this.roundPhase}`);
+    
     // Emit round start with player-safe question data only
     this.io.to(this.roomCode).emit(EVENTS.ROUND_START, {
       clientQuestion: clientQ,
@@ -453,7 +463,7 @@ export class RoundEngine {
     this.io.to(`player_${playerId}`).emit(event, data);
   }
 
-  private broadcastRoomState(firstCorrectTimeMs?: number) {
+  public broadcastRoomState(firstCorrectTimeMs?: number) {
     const clientQ = this.currentClientQuestion();
     const modeId = this.snapshot.selectedModes[this.modeIndex];
     const modeTimerSec = this.snapshot.modes[modeId]?.modeDefinition?.timerSeconds;

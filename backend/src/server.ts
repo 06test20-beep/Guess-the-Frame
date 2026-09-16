@@ -13,7 +13,8 @@ const io = new Server(httpServer, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  maxHttpBufferSize: 5e6 // 5 MB
 });
 
 const roomManager = new RoomManager(io);

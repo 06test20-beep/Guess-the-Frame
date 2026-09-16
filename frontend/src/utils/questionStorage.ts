@@ -199,8 +199,13 @@ function storedToQuestion(sq: StoredQuestion, modeId?: ModeId): Question {
     modeId:         sq.modeId ?? modeId ?? LEVEL_ID_TO_MODE_ID[sq.level] ?? String(sq.level),
     questionNumber: sq.questionNumber,
     type:           sq.type,
-    imagePath:      sq.imageData ?? sq.imagePath,
-    fullImagePath:  sq.fullImageData,
+    // Keep static path and IDB/base64 reference SEPARATE so each consumer
+    // can use the right field: AsyncImage uses imagePath (handles idb:// inline),
+    // while online startGame uses imageData to detect and resolve idb:// keys.
+    imagePath:      sq.imagePath,
+    imageData:      sq.imageData,
+    fullImagePath:  undefined,          // no static full-image path in StoredQuestion
+    fullImageData:  sq.fullImageData,
     dialogue:       sq.dialogue,
     hint:           sq.hint,
     answer:         sq.answer,

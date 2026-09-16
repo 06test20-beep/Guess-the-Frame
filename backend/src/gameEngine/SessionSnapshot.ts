@@ -23,8 +23,9 @@ export interface HostStoredQuestion {
   questionNumber: number;
   type: string;
   imageData?: string;      // base64 data URL — eye crop / frame image
-  imagePath?: string;
-  fullImageData?: string;  // eye questions only — full-face image for reveal
+  imagePath?: string;      // static public-asset path — eye crop / frame image fallback
+  fullImageData?: string;  // eye questions only — full-face base64 data URL for reveal
+  fullImagePath?: string;  // eye questions only — full-face static public-asset path for reveal
   dialogue?: string;
   hint?: string;
   answer: string;
@@ -116,23 +117,29 @@ export function buildSessionSnapshot(
         clientQ.imageKey = `path:${q.imagePath}`;
       }
 
-      // ── Full image handling (eye questions only) ──────────────────────────
-      if (q.type === 'eye' && q.fullImageData) {
-        if (dataToKey.has(q.fullImageData)) {
-          clientQ.fullImageKey = dataToKey.get(q.fullImageData)!;
-        } else {
-          const estimatedBytes = Math.ceil((q.fullImageData.length * 3) / 4);
-          if (totalImageBytes + estimatedBytes > ONLINE_SESSION_MAX_IMAGE_BYTES) {
-            console.warn(`[Snapshot] Image size limit reached. Skipping full image for question ${q.id}.`);
+      // ── Full image handling (eye questions only) ────────────────────────────────────
+      if (q.type === 'eye') {
+        if (q.fullImageData) {
+          // Base64 data asset
+          if (dataToKey.has(q.fullImageData)) {
+            clientQ.fullImageKey = dataToKey.get(q.fullImageData)!;
           } else {
-            totalImageBytes += estimatedBytes;
-            const key = `img_full_${q.id}`;
-            const mimeMatch = q.fullImageData.match(/^data:([^;]+);/);
-            const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-            assets.set(key, { key, mimeType, data: q.fullImageData });
-            dataToKey.set(q.fullImageData, key);
-            clientQ.fullImageKey = key;
+            const estimatedBytes = Math.ceil((q.fullImageData.length * 3) / 4);
+            if (totalImageBytes + estimatedBytes > ONLINE_SESSION_MAX_IMAGE_BYTES) {
+              console.warn(`[Snapshot] Image size limit reached. Skipping full image for question ${q.id}.`);
+            } else {
+              totalImageBytes += estimatedBytes;
+              const key = `img_full_${q.id}`;
+              const mimeMatch = q.fullImageData.match(/^data:([^;]+);/);
+              const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+              assets.set(key, { key, mimeType, data: q.fullImageData });
+              dataToKey.set(q.fullImageData, key);
+              clientQ.fullImageKey = key;
+            }
           }
+        } else if (q.fullImagePath) {
+          // Static public-asset path
+          clientQ.fullImageKey = `path:${q.fullImagePath}`;
         }
       }
 

@@ -68,8 +68,8 @@ export class GameRoom {
     this.electHost();
 
     // If a game is running, sync this reconnecting player to current state
-    if (this.state === 'playing') {
-      this.broadcastState();
+    if (this.state === 'playing' && this.roundEngine) {
+      this.roundEngine.broadcastRoomState();
     } else {
       this.broadcastState();
     }
@@ -98,7 +98,11 @@ export class GameRoom {
       this.electHost();
     }
 
-    this.broadcastState();
+    if (this.state === 'playing' && this.roundEngine) {
+      this.roundEngine.broadcastRoomState();
+    } else {
+      this.broadcastState();
+    }
   }
 
   isEmpty() {
@@ -131,6 +135,13 @@ export class GameRoom {
         const payload = action.payload as HostGamePayload;
         if (!payload?.selectedModes?.length) return callback({ error: 'No games selected' });
 
+        console.log('TRACE [Backend START_GAME Received]');
+        console.log('- selectedModes:', payload.selectedModes);
+        for (const mode of payload.selectedModes) {
+          const q = payload.modesData[mode]?.find(() => true); // safe get first element
+          console.log(`- Mode: ${mode}, Q1 ID: ${q?.id}, imageData present: ${!!q?.imageData}, imagePath: ${q?.imagePath}`);
+        }
+
         // Build immutable session snapshot
         const { snapshot, assets } = buildSessionSnapshot(payload, (modeId: string) => {
           // Host is sending all data; no server-side defaults needed here
@@ -139,6 +150,11 @@ export class GameRoom {
         });
 
         this.sessionAssets = assets;
+        console.log('TRACE [Backend SessionSnapshot Built]');
+        console.log(`- Unique images created: ${assets.size}`);
+        console.log(`- Total size: ${[...assets.values()].reduce((acc, a) => acc + a.data.length, 0)} bytes`);
+        const firstMode = payload.selectedModes[0];
+        console.log(`- Q1 Snapshot Client Question:`, snapshot.modes[firstMode]?.clientQuestions[0]);
         this.state = 'playing';
 
         // Reset all player scores for this session
@@ -157,7 +173,6 @@ export class GameRoom {
           this.hostId!,
         );
 
-        this.broadcastState();
         this.roundEngine.start();
 
         callback({ success: true });
@@ -171,7 +186,11 @@ export class GameRoom {
 
         this.players = this.players.filter(p => p.id !== targetId);
         this.io.to(this.code).emit(EVENTS.PLAYER_KICKED, targetId);
-        this.broadcastState();
+        if (this.state === 'playing' && this.roundEngine) {
+          this.roundEngine.broadcastRoomState();
+        } else {
+          this.broadcastState();
+        }
         callback({ success: true });
         break;
       }
@@ -188,6 +207,15 @@ export class GameRoom {
         if (!this.roundEngine) return;
         const imageKey = action.payload as string;
         this.roundEngine.handleImageRequest(playerId, imageKey);
+        callback({ success: true });
+        break;
+      }
+
+      case 'REVEAL_EARLY': {
+        if (playerId !== this.hostId) return callback({ error: 'Only the host can reveal early' });
+        if (this.state === 'playing' && this.roundEngine) {
+          this.roundEngine.forceReveal();
+        }
         callback({ success: true });
         break;
       }
@@ -219,7 +247,7 @@ export class GameRoom {
       code: this.code,
       hostId: this.hostId,
       players: this.players,
-      state: this.state,
+      phase: this.state,
     });
   }
 
