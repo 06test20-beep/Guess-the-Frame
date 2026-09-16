@@ -238,7 +238,7 @@ function QuestionCard({
               </div>
             ) : q.fullImageData ? (
               <div className="admin-img-preview-wrap">
-                <img
+                <AsyncImage
                   src={q.fullImageData}
                   alt="full reveal preview"
                   className="admin-img-preview"
