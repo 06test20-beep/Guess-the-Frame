@@ -16,6 +16,7 @@ import PlayingSequencePage from './pages/PlayingSequencePage';
 import OnlineSetupPage    from './pages/OnlineSetupPage';
 import OnlineLobbyPage    from './pages/OnlineLobbyPage';
 import OnlineGameplayPage from './pages/OnlineGameplayPage';
+import StudioPage         from './pages/StudioPage';
 
 export default function App() {
   const phase = useGameStore(s => s.phase);
@@ -100,6 +101,9 @@ export default function App() {
 
     case 'admin':
       return <AdminPage />;
+
+    case 'admin-studio':
+      return <StudioPage />;
 
     case 'online-setup':
       return <OnlineSetupPage />;

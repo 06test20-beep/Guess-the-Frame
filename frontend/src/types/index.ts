@@ -121,7 +121,8 @@ export type GamePhase =
   | 'online-setup'
   | 'online-lobby'
   | 'online-gameplay'
-  | 'playing-sequence';
+  | 'playing-sequence'
+  | 'admin-studio';
 
 // ─── Store shape ─────────────────────────────────────────────────────────────
 export interface GameStore {

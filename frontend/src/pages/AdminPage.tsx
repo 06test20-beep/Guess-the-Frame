@@ -129,7 +129,7 @@ function QuestionCard({
         <button
           className="admin-q-card__type"
           title="Click to change question type"
-          style={{ cursor: 'pointer', border: '1px solid var(--border-soft)', borderRadius: '8px', padding: '2px 10px', background: 'rgba(155,89,182,0.08)', fontWeight: 700, fontSize: '0.75rem' }}
+          style={{ cursor: 'pointer', border: '1px solid #333344', borderRadius: '8px', padding: '2px 10px', background: '#1a1a24', fontWeight: 700, fontSize: '0.75rem', color: '#94a3b8' }}
           onClick={() => {
             const types: QuestionType[] = ['frame', 'eye', 'dialogue', 'emoji'];
             const next = types[(types.indexOf(q.type) + 1) % types.length];
@@ -149,7 +149,7 @@ function QuestionCard({
       {(q.type === 'frame' || q.type === 'eye') && (
         <>
           {q.type === 'eye' && (
-            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#059669', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
               👁 Manual Crop Override (Optional)
             </div>
           )}
@@ -166,7 +166,7 @@ function QuestionCard({
           >
             {compressing ? (
               <div className="admin-img-empty">
-                <Loader2 className="animate-spin" size={32} style={{ color: 'var(--primary)' }} />
+                <Loader2 className="animate-spin" size={32} style={{ color: '#059669' }} />
                 <span>Compressing image…</span>
               </div>
             ) : imagePreview ? (
@@ -184,7 +184,7 @@ function QuestionCard({
               </div>
             ) : (
               <div className="admin-img-empty">
-                <div style={{ color: 'var(--primary)', opacity: 0.8 }}>
+                <div style={{ color: '#059669', opacity: 0.8 }}>
                   {q.type === 'eye' ? <Eye size={48} strokeWidth={1.5} /> : <Film size={48} strokeWidth={1.5} />}
                 </div>
                 <span>Click or drag &amp; drop image here</span>
@@ -558,8 +558,8 @@ function ManageModesModal({ modes, onClose, onUpdate }: { modes: GameMode[], onC
               </div>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: m.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{m.icon}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold' }}>{m.name} <span style={{ fontSize: '0.7em', padding: '2px 6px', background: 'rgba(0,0,0,0.1)', borderRadius: 4, marginLeft: 4 }}>{m.source}</span></div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.subtitle}</div>
+                <div style={{ fontWeight: 'bold', color: '#e2e8f0' }}>{m.name} <span style={{ fontSize: '0.7em', padding: '2px 6px', background: 'rgba(0,0,0,0.2)', color: '#94a3b8', borderRadius: 4, marginLeft: 4 }}>{m.source}</span></div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{m.subtitle}</div>
               </div>
               
               <button 
@@ -749,6 +749,16 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Studio Button */}
+          <button
+            className="btn-outline"
+            onClick={() => setPhase('admin-studio')}
+            title="Open Content Preparation Studio"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', borderColor: '#059669', color: '#059669' }}
+          >
+            <Settings size={16} /> Studio
+          </button>
+          
           {/* Import JSON */}
           <button
             className="btn-outline"
@@ -810,7 +820,7 @@ export default function AdminPage() {
 
         {/* Info banner */}
         <div className="admin-info-banner">
-          <Camera size={48} color="var(--primary)" style={{ flexShrink: 0 }} />
+          <Camera size={48} color="#059669" style={{ flexShrink: 0 }} />
           <div>
             <strong>How it works:</strong> Upload images by clicking or dragging them onto a question card.
             Images are auto-compressed before saving. Fill in the answer and click <strong>Save Mode</strong>.
@@ -845,7 +855,7 @@ export default function AdminPage() {
           
           <button
             className="admin-tab"
-            style={{ borderStyle: 'dashed', color: 'var(--primary)', fontWeight: 600 }}
+            style={{ borderStyle: 'dashed', color: '#059669', borderColor: '#059669', fontWeight: 600 }}
             onClick={() => setShowCreateMode(true)}
           >
             <Plus size={16} /> New Mode
@@ -855,7 +865,7 @@ export default function AdminPage() {
           
           <button
             className="admin-tab"
-            style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)' }}
+            style={{ border: 'none', background: 'transparent', color: '#94a3b8' }}
             onClick={() => setShowManageModes(true)}
           >
             <ListTree size={16} /> Manage Modes
