@@ -2,10 +2,19 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import path from 'path';
 import { RoomManager } from './gameEngine/RoomManager';
+import studioRoutes from './routes/studio';
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+
+// Serve extracted frames statically so the frontend can display them
+app.use('/tmp', express.static(path.join(process.cwd(), 'tmp')));
+
+// Mount studio routes
+app.use('/api/studio', studioRoutes);
 
 const httpServer = createServer(app);
 
