@@ -12,6 +12,7 @@
 
 import type { GameMode, ModeId, LevelId } from '../types';
 import { DEFAULT_MODES, LEVEL_ID_TO_MODE_ID } from '../constants/game';
+import { clearModeQuestions } from './questionStorage';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -208,6 +209,7 @@ export function deleteCustomMode(id: ModeId): boolean {
   if (!mode || mode.source !== 'CUSTOM') return false;
 
   saveRegistry(modes.filter(m => m.id !== id));
+  clearModeQuestions(id);
   return true;
 }
 
@@ -227,4 +229,5 @@ export function resetBuiltInMode(id: ModeId): void {
   const currentOrder = modes[idx].order;
   modes[idx] = { ...defaultMode, order: currentOrder };
   saveRegistry(modes);
+  clearModeQuestions(id);
 }
