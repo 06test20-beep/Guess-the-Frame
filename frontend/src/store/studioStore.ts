@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export interface DraftItem {
   id: string; // Unique draft ID (e.g., uuid)
   draftImageKey?: string; // idb:// key for the processed/compressed image
+  fullDraftImageKey?: string; // idb:// key for the full face image
   originalFileMeta?: { name: string; size: number }; // For UI reference
   metadata: {
     answer: string;

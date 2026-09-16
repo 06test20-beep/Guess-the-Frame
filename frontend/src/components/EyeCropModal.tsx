@@ -148,7 +148,7 @@ export default function EyeCropModal({ file, onSave, onCancel }: EyeCropModalPro
                   alt="Crop me"
                   src={imgSrc}
                   onLoad={onImageLoad}
-                  style={{ maxHeight: '60vh', objectFit: 'contain' }}
+                  style={{ maxHeight: '60vh', maxWidth: '100%' }}
                 />
               </ReactCrop>
             )}

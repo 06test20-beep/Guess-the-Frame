@@ -3,10 +3,11 @@ import { useStudioStore } from '../../store/studioStore';
 import AsyncImage from '../AsyncImage';
 import { Trash2, Wand2, Type } from 'lucide-react';
 
-import { getQuestionsForMode, saveModeQuestions } from '../../utils/questionStorage';
+import { getQuestionsForMode, saveModeQuestions, modeHasCustomData, compressImage } from '../../utils/questionStorage';
 import type { StoredQuestion } from '../../utils/questionStorage';
-import { getImage } from '../../utils/indexedDB';
+import { getImage, saveImage } from '../../utils/indexedDB';
 import { applyDistortion } from '../../utils/distortion';
+import { generateImageKey } from '../../utils/migration';
 import { getRegistry } from '../../utils/modeRegistry';
 import type { GameMode, QuestionType } from '../../types';
 import type { DraftItem } from '../../store/studioStore';
@@ -56,7 +57,7 @@ export default function StudioWorkspace() {
       ? targetMode.templateId as QuestionType
       : 'frame';
 
-    const currentQuestions = getQuestionsForMode(targetModeId);
+    const currentQuestions = modeHasCustomData(targetModeId) ? getQuestionsForMode(targetModeId) : [];
     const nextQNum = currentQuestions.length > 0 ? Math.max(...currentQuestions.map(q => q.questionNumber)) + 1 : 1;
 
     const newQuestions: StoredQuestion[] = drafts.map((d, idx) => ({
@@ -66,6 +67,7 @@ export default function StudioWorkspace() {
       questionNumber: nextQNum + idx,
       type: baseType,
       imageData: d.draftImageKey,
+      fullImageData: baseType === 'eye' ? d.fullDraftImageKey : undefined,
       answer: d.metadata.answer,
       hint: d.metadata.hint,
       year: d.metadata.year,
@@ -146,23 +148,72 @@ function DraftEditorCard({
   onRemove: () => void,
   onProcessDistortion: () => void
 }) {
+  const fullFileRef = React.useRef<HTMLInputElement>(null);
+  const [compressingFull, setCompressingFull] = React.useState(false);
+
+  const handleFullImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setCompressingFull(true);
+    try {
+      const base64 = await compressImage(file, 1280, 0.72);
+      const key = generateImageKey();
+      await saveImage(key, base64);
+      onUpdate({ fullDraftImageKey: key });
+    } catch (e) {
+      console.error('Failed to compress full image:', e);
+      alert('Could not process full image. Try a different file.');
+    } finally {
+      setCompressingFull(false);
+    }
+  };
+
   return (
     <div className="draft-card">
-      {/* Image Preview */}
-      <div className="draft-img-container">
-        <div className="draft-img-inner">
-          {draft.draftImageKey ? (
-            <AsyncImage 
-              src={draft.draftImageKey} 
-              alt="Draft Preview"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          ) : (
-            <div className="draft-no-img">No Image</div>
+      {/* Main Image Preview (Crop) */}
+      <div className="draft-img-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', height: '100%' }}>
+          <div className="draft-img-inner" style={{ flex: 1, position: 'relative' }}>
+            {draft.draftImageKey ? (
+              <AsyncImage 
+                src={draft.draftImageKey} 
+                alt="Draft Preview"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <div className="draft-no-img">No Image</div>
+            )}
+            <div className="draft-img-badge" style={{ position: 'absolute', top: 4, left: 4 }}>
+              #{index + 1}
+            </div>
+            {templateId === 'eye' && (
+              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Crop</div>
+            )}
+          </div>
+          
+          {/* Secondary Full Image Preview for Eye Mode */}
+          {templateId === 'eye' && (
+            <div className="draft-img-inner" style={{ flex: 1, position: 'relative', borderStyle: 'dashed' }} onClick={() => !compressingFull && fullFileRef.current?.click()}>
+              {compressingFull ? (
+                <div className="draft-no-img">Compressing...</div>
+              ) : draft.fullDraftImageKey ? (
+                <AsyncImage 
+                  src={draft.fullDraftImageKey} 
+                  alt="Full Face Preview"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              ) : (
+                <div className="draft-no-img" style={{ cursor: 'pointer', fontSize: '0.75rem', textAlign: 'center' }}>+ Full Face</div>
+              )}
+              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Full</div>
+              <input
+                ref={fullFileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFullImageUpload(f); }}
+              />
+            </div>
           )}
-        </div>
-        <div className="draft-img-badge">
-          #{index + 1}
         </div>
       </div>
 
