@@ -101,6 +101,13 @@ export function saveModeQuestions(modeId: ModeId, questions: StoredQuestion[]): 
 
 export function clearModeQuestions(modeId: ModeId): void {
   localStorage.removeItem(V2_KEY(modeId));
+  
+  // Wipe V1 legacy data too, otherwise loadStoredMode will instantly resurrect it!
+  const levelId = MODE_ID_TO_LEVEL_ID[modeId];
+  if (levelId !== undefined) {
+    localStorage.removeItem(V1_KEY(levelId as LevelId));
+  }
+
   cleanupUnusedImages().catch(e => console.error('[GTF] Cleanup failed:', e));
 }
 

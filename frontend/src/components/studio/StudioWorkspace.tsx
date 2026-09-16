@@ -66,8 +66,8 @@ export default function StudioWorkspace() {
       modeId: targetModeId,
       questionNumber: nextQNum + idx,
       type: baseType,
-      imageData: d.draftImageKey,
-      fullImageData: baseType === 'eye' ? d.fullDraftImageKey : undefined,
+      imageData: baseType === 'eye' ? d.fullDraftImageKey : d.draftImageKey,
+      fullImageData: baseType === 'eye' ? d.draftImageKey : undefined,
       answer: d.metadata.answer,
       hint: d.metadata.hint,
       year: d.metadata.year,
@@ -186,11 +186,11 @@ function DraftEditorCard({
               #{index + 1}
             </div>
             {templateId === 'eye' && (
-              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Crop</div>
+              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Full Face</div>
             )}
           </div>
           
-          {/* Secondary Full Image Preview for Eye Mode */}
+          {/* Secondary Crop Preview for Eye Mode */}
           {templateId === 'eye' && (
             <div className="draft-img-inner" style={{ flex: 1, position: 'relative', borderStyle: 'dashed' }} onClick={() => !compressingFull && fullFileRef.current?.click()}>
               {compressingFull ? (
@@ -198,13 +198,13 @@ function DraftEditorCard({
               ) : draft.fullDraftImageKey ? (
                 <AsyncImage 
                   src={draft.fullDraftImageKey} 
-                  alt="Full Face Preview"
+                  alt="Crop Preview"
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
               ) : (
-                <div className="draft-no-img" style={{ cursor: 'pointer', fontSize: '0.75rem', textAlign: 'center' }}>+ Full Face</div>
+                <div className="draft-no-img" style={{ cursor: 'pointer', fontSize: '0.75rem', textAlign: 'center' }}>+ Eye Crop</div>
               )}
-              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Full</div>
+              <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 4 }}>Crop</div>
               <input
                 ref={fullFileRef}
                 type="file"
